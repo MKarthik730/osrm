@@ -1,0 +1,682 @@
+# LocSync — Complete Code Explanation
+# Every function from initMap() to the last line
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. GLOBAL STATE (variables that live through the whole app)
+# ─────────────────────────────────────────────────────────────────────────────
+
+let FASTAPI_URL = localStorage.getItem('fastapi_url') || 'http://localhost:8000';
+# Loads saved server URL from browser storage
+# If nothing saved → defaults to localhost:8000
+
+const OSRM_URL = 'http://localhost:5000';
+# OSRM always runs locally on your machine — no tunnel needed
+
+document.getElementById('serverUrlInput').value = FASTAPI_URL;
+# Pre-fills the server URL input box in the header with saved URL
+
+let socket = null          # Socket.io connection object
+let myUserId = null        # Your user ID e.g. "karthik"
+let isSharing = false      # Are you currently sharing location?
+let sharingInterval = null # Holds the setInterval timer reference
+let updateCount = 0        # Counts how many GPS updates sent
+
+let myMarker = null        # Your green pin on the map
+let friendMarker = null    # Friend's purple pin on the map
+let routeLayer = null      # The drawn route line on the map
+
+let myPos = null           # Your current position { lat, lon }
+let friendPos = null       # Friend's current position { lat, lon }
+let map = null             # The Leaflet map object
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. saveServerUrl()
+# Called when user clicks "Save" button in header
+# ─────────────────────────────────────────────────────────────────────────────
+
+function saveServerUrl() {
+  FASTAPI_URL = document.getElementById('serverUrlInput').value.trim().replace(/\/$/, '');
+  # Gets URL from input, removes trailing slash
+
+  localStorage.setItem('fastapi_url', FASTAPI_URL);
+  # Saves to browser storage so it persists after refresh
+
+  document.getElementById('serverStatus').textContent = isLocal ? 'localhost' : 'tunnel ✓';
+  # Updates status text in sidebar
+
+  showToast('✅ Server URL saved!', 'success');
+  # Shows green popup notification
+
+  if (socket) {
+    socket.disconnect();
+    # If already connected, disconnect so user reconnects with new URL
+  }
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. initMap()
+# Creates the Leaflet map on page load
+# ─────────────────────────────────────────────────────────────────────────────
+
+function initMap() {
+  map = L.map('map').setView([17.7384, 83.3185], 13);
+  # L = Leaflet library
+  # 'map' = the <div id="map"> in HTML
+  # [17.7384, 83.3185] = Vizag coordinates (lat, lon)
+  # 13 = zoom level (1=world, 19=street level)
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap',
+    maxZoom: 19,
+  }).addTo(map);
+  # Loads the actual map images (tiles) from OpenStreetMap
+  # {s} = subdomain (a/b/c for load balancing)
+  # {z} = zoom level
+  # {x}{y} = tile grid coordinates
+
+  map.on('click', e => {
+    document.getElementById('fromLat').value = e.latlng.lat.toFixed(6);
+    document.getElementById('fromLon').value = e.latlng.lng.toFixed(6);
+    showToast('📍 From point set from map click', 'info');
+  });
+  # When user clicks anywhere on map
+  # → auto fills From Lat/Lon in the Route tab
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. makeIcon(label, color)
+# Creates a custom teardrop-shaped map pin
+# ─────────────────────────────────────────────────────────────────────────────
+
+function makeIcon(label, color) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="display:flex;flex-direction:column;align-items:center">
+      <div style="width:36px;height:36px;
+                  border-radius:50% 50% 50% 0;   ← teardrop shape
+                  transform:rotate(-45deg);        ← rotated to point down
+                  background:${color};             ← green or purple
+                  ...">
+        <span style="transform:rotate(45deg)">    ← counter-rotate text so it's upright
+          ${label}                                 ← "ME" or "K" or "R"
+        </span>
+      </div>
+    </div>`,
+    iconSize: [36, 44],      # width, height of icon
+    iconAnchor: [18, 44],    # which point of icon = the actual location (bottom center)
+    popupAnchor: [0, -44],   # where popup appears relative to icon
+  });
+}
+# Returns a Leaflet DivIcon object
+# Used by placeMyMarker() and placeFriendMarker()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. placeMyMarker(lat, lon)
+# Puts YOUR green pin on the map
+# ─────────────────────────────────────────────────────────────────────────────
+
+function placeMyMarker(lat, lon) {
+  if (myMarker) map.removeLayer(myMarker);
+  # Remove old marker first to avoid duplicates
+
+  myMarker = L.marker([lat, lon], { icon: makeIcon('ME', '#00e5a0') })
+    .addTo(map)
+    .bindPopup(`<b>You</b><br><small>${lat.toFixed(5)}, ${lon.toFixed(5)}</small>`);
+  # Creates green "ME" pin at your GPS coords
+  # bindPopup = shows info when you click the pin
+
+  myPos = { lat, lon };
+  # Save position so ETA and fitAll() can use it
+}
+# Called every 5 seconds as GPS updates
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. placeFriendMarker(userId, lat, lon)
+# Puts FRIEND'S purple pin on the map
+# ─────────────────────────────────────────────────────────────────────────────
+
+function placeFriendMarker(userId, lat, lon) {
+  if (friendMarker) map.removeLayer(friendMarker);
+  # Remove old marker first
+
+  friendMarker = L.marker([lat, lon], { icon: makeIcon(userId[0].toUpperCase(), '#7c3aed') })
+    .addTo(map)
+    .bindPopup(`<b>${userId}</b><br><small>${lat.toFixed(5)}, ${lon.toFixed(5)}</small>`);
+  # userId[0].toUpperCase() = first letter of their name e.g. "R" for rahul
+  # '#7c3aed' = purple color
+
+  friendPos = { lat, lon };
+  # Save position for ETA calculation
+
+  updateFriendCard(userId, lat, lon);
+  # Update the card in the Watch tab
+
+  document.getElementById('getEtaBtn').disabled = false;
+  # Enable the Get ETA button now that we have friend's location
+}
+# Called every time a location_update Socket.io event arrives
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. connectToServer()
+# Called when user clicks "Connect" button
+# ─────────────────────────────────────────────────────────────────────────────
+
+function connectToServer() {
+  myUserId = document.getElementById('myUserId').value.trim();
+  if (!myUserId) { showToast('Enter your user ID first', 'error'); return; }
+  # Validate — don't connect without an ID
+
+  FASTAPI_URL = document.getElementById('serverUrlInput').value.trim().replace(/\/$/, '');
+  # Read current server URL from input
+
+  document.getElementById('connectBtn').disabled = true;
+  document.getElementById('connectBtn').textContent = 'Connecting...';
+  # Disable button and show loading state
+
+  socket = io(FASTAPI_URL, {
+    auth: { user_id: myUserId },
+    # Sends user_id to server on connect
+    # FastAPI's on_connect() reads this to know who you are
+
+    transports: ['websocket', 'polling'],
+    # Try WebSocket first, fall back to HTTP polling if needed
+
+    reconnection: true,
+    reconnectionDelay: 2000,
+    # Auto-reconnect every 2 seconds if connection drops
+  });
+
+  socket.on('connect', () => {
+    setConnected(true);
+    document.getElementById('startShareBtn').disabled = false;
+    document.getElementById('connectBtn').textContent = 'Connected ✓';
+    showToast(`✅ Connected as "${myUserId}"`, 'success');
+    # Fires when Socket.io successfully connects to FastAPI
+  });
+
+  socket.on('disconnect', () => {
+    setConnected(false);
+    document.getElementById('startShareBtn').disabled = true;
+    showToast('❌ Disconnected from server', 'error');
+    # Fires when connection drops (app closed, network loss etc)
+  });
+
+  socket.on('location_update', (data) => {
+    placeFriendMarker(data.user_id, data.lat, data.lon);
+    switchTab('watch');
+    showToast(`📍 ${data.user_id} updated location`, 'info');
+    # THIS IS THE KEY EVENT
+    # Server pushes this to you when your friend sends their location
+    # data = { user_id, lat, lon, timestamp }
+    # → moves friend's pin on your map
+  });
+
+  socket.on('connect_error', () => {
+    showToast('Cannot reach server — check URL in header', 'error');
+    document.getElementById('connectBtn').disabled = false;
+    document.getElementById('connectBtn').textContent = 'Connect';
+    # Fires if server URL is wrong or server is not running
+  });
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. setConnected(val)
+# Updates the connection badge in the header
+# ─────────────────────────────────────────────────────────────────────────────
+
+function setConnected(val) {
+  const badge = document.getElementById('connBadge');
+  const text  = document.getElementById('connText');
+  const st    = document.getElementById('socketStatus');
+
+  if (val) {
+    badge.classList.add('connected');    # adds green glow animation to dot
+    text.textContent = 'Connected';
+    st.textContent   = 'Online';
+    st.style.color   = 'var(--accent)'; # green
+  } else {
+    badge.classList.remove('connected');
+    text.textContent = 'Disconnected';
+    st.textContent   = 'Offline';
+    st.style.color   = 'var(--danger)'; # red
+  }
+}
+# Just a UI helper — no logic here
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. startSharing()
+# Called when user clicks "Start Sharing" button
+# ─────────────────────────────────────────────────────────────────────────────
+
+async function startSharing() {
+  const watcherId = document.getElementById('watcherIdInput').value.trim();
+  if (!watcherId)         { showToast('Enter friend ID', 'error'); return; }
+  if (!socket?.connected) { showToast('Connect first', 'error'); return; }
+  # Validate both fields before doing anything
+
+  try {
+    await fetch(`${FASTAPI_URL}/start-sharing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sharer_id: myUserId, watcher_id: watcherId }),
+    });
+    # Calls FastAPI POST /start-sharing
+    # FastAPI stores: sharing_sessions["karthik"] = "rahul"
+    # Now server knows: anything from karthik goes to rahul
+
+    isSharing = true;
+    document.getElementById('startShareBtn').style.display = 'none';
+    document.getElementById('stopShareBtn').style.display  = 'block';
+    # Swap Start button for Stop button
+
+    document.getElementById('sharingStatus').textContent = `→ ${watcherId}`;
+    document.getElementById('sharingIndicator').classList.add('visible', 'sharing');
+    # Show the "Sharing live location" indicator at bottom of map
+
+    startLocationLoop();
+    # Begin sending GPS every 5 seconds
+
+    showToast(`📡 Now sharing with ${watcherId}`, 'success');
+  } catch(e) {
+    showToast('Failed — is FastAPI running?', 'error');
+  }
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 10. stopSharing()
+# Called when user clicks "Stop Sharing" button
+# ─────────────────────────────────────────────────────────────────────────────
+
+async function stopSharing() {
+  const watcherId = document.getElementById('watcherIdInput').value.trim();
+
+  try {
+    await fetch(`${FASTAPI_URL}/stop-sharing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sharer_id: myUserId, watcher_id: watcherId }),
+    });
+    # Calls FastAPI POST /stop-sharing
+    # FastAPI removes: sharing_sessions["karthik"]
+    # Now server knows: nothing from karthik goes anywhere
+  } catch(e) {}
+
+  isSharing = false;
+  clearInterval(sharingInterval);
+  # Stops the 5 second GPS timer
+
+  document.getElementById('startShareBtn').style.display = 'block';
+  document.getElementById('stopShareBtn').style.display  = 'none';
+  document.getElementById('sharingStatus').textContent   = 'Inactive';
+  document.getElementById('sharingIndicator').classList.remove('visible', 'sharing');
+  # Reset all UI back to idle state
+
+  showToast('🛑 Stopped sharing', 'info');
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 11. startLocationLoop()
+# Starts sending GPS every 5 seconds
+# ─────────────────────────────────────────────────────────────────────────────
+
+function startLocationLoop() {
+  sendLocation();
+  # Send immediately — don't wait 5 seconds for first update
+
+  sharingInterval = setInterval(sendLocation, 5000);
+  # Then repeat every 5000ms = 5 seconds
+  # setInterval returns an ID stored in sharingInterval
+  # We save it so stopSharing() can cancel it with clearInterval()
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 12. sendLocation()
+# Gets GPS from browser → sends to FastAPI → FastAPI sends to OSRM → emits to friend
+# The most important function in the whole app
+# ─────────────────────────────────────────────────────────────────────────────
+
+function sendLocation() {
+  if (!navigator.geolocation) {
+    showToast('Geolocation not supported', 'error'); return;
+  }
+  # Check if browser supports GPS
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      # SUCCESS — got real GPS from device
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+
+      document.getElementById('gpsStatus').textContent = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+      # Show coords in sidebar
+
+      placeMyMarker(lat, lon);
+      # Move your green pin on map
+
+      try {
+        await fetch(`${FASTAPI_URL}/share-location`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: myUserId, latitude: lat, longitude: lon }),
+        });
+        # POST to FastAPI /share-location
+        # FastAPI then:
+        #   1. Calls OSRM /nearest to snap coords to road
+        #   2. Saves to last_locations dict
+        #   3. Looks up who is watching you
+        #   4. Emits location_update to friend's socket
+
+        updateCount++;
+        document.getElementById('updateCount').textContent = updateCount;
+        # Increment counter shown in sidebar
+      } catch(e) {
+        showToast('Failed to send location', 'error');
+      }
+    },
+
+    () => {
+      # FAIL — GPS denied or unavailable
+      # Use simulated location for testing
+      const lat = 17.7384 + (Math.random() - 0.5) * 0.02;
+      const lon = 83.3185 + (Math.random() - 0.5) * 0.02;
+      # Random coords near Vizag center
+      # (Math.random() - 0.5) = value between -0.5 and +0.5
+      # * 0.02 = small offset so marker moves slightly each time
+
+      document.getElementById('gpsStatus').textContent = `${lat.toFixed(4)},${lon.toFixed(4)} (sim)`;
+      # Shows "(sim)" to indicate simulated location
+
+      placeMyMarker(lat, lon);
+      # Still places marker even when simulated
+    },
+
+    { enableHighAccuracy: true, timeout: 6000 }
+    # enableHighAccuracy = use GPS chip not just WiFi triangulation
+    # timeout = give up after 6 seconds if no GPS fix
+  );
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 13. getETA()
+# Called when user clicks "Get ETA to Friend" button
+# ─────────────────────────────────────────────────────────────────────────────
+
+async function getETA() {
+  if (!myPos || !friendPos) { showToast('Need both locations', 'error'); return; }
+  # Both markers must exist on map first
+
+  try {
+    const res = await fetch(`${FASTAPI_URL}/route`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from_lat: myPos.lat, from_lon: myPos.lon,
+        to_lat: friendPos.lat, to_lon: friendPos.lon,
+      }),
+    });
+    # Calls FastAPI POST /route
+    # FastAPI calls OSRM /route/v1/driving/lon1,lat1;lon2,lat2
+    # OSRM returns distance + duration + geometry
+
+    const data = await res.json();
+    document.getElementById('etaTime').textContent = data.duration_mins;
+    document.getElementById('etaDist').textContent = data.distance_km;
+    document.getElementById('etaCard').classList.add('visible');
+    # Show the ETA card in Watch tab
+
+    if (data.geometry) drawRoute(data.geometry);
+    # Draw the route line on the map
+
+    showToast(`🗺️ ${data.duration_mins} mins • ${data.distance_km} km`, 'success');
+  } catch(e) {
+    showToast('ETA failed', 'error');
+  }
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 14. queryRoute()
+# Called when user clicks "Get Route" in Route tab
+# Manual route between two entered coordinates
+# ─────────────────────────────────────────────────────────────────────────────
+
+async function queryRoute() {
+  const fromLat = parseFloat(document.getElementById('fromLat').value);
+  const fromLon = parseFloat(document.getElementById('fromLon').value);
+  const toLat   = parseFloat(document.getElementById('toLat').value);
+  const toLon   = parseFloat(document.getElementById('toLon').value);
+  # Read all 4 coordinate inputs
+
+  try {
+    const res = await fetch(`${FASTAPI_URL}/route`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from_lat: fromLat, from_lon: fromLon, to_lat: toLat, to_lon: toLon }),
+    });
+    const data = await res.json();
+    showRouteResult(`${data.distance_km} km`, `${data.duration_mins} min`, 'FastAPI → OSRM');
+    if (data.geometry) drawRoute(data.geometry);
+    # Primary: try through FastAPI
+
+  } catch(e) {
+    try {
+      const res  = await fetch(
+        `${OSRM_URL}/route/v1/driving/${fromLon},${fromLat};${toLon},${toLat}?overview=full&geometries=geojson`
+      );
+      const data = await res.json();
+      if (data.code === 'Ok') {
+        showRouteResult(
+          `${(data.routes[0].distance/1000).toFixed(2)} km`,
+          `${(data.routes[0].duration/60).toFixed(1)} min`,
+          'OSRM direct'
+        );
+        drawRoute(data.routes[0].geometry);
+      }
+      # Fallback: if FastAPI is down, call OSRM directly
+      # Note: OSRM uses lon,lat order (opposite of normal!)
+    } catch(e2) {
+      showToast('Both servers unreachable', 'error');
+    }
+  }
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 15. showRouteResult(dist, dur, source)
+# Updates the route result card in Route tab
+# ─────────────────────────────────────────────────────────────────────────────
+
+function showRouteResult(dist, dur, source) {
+  document.getElementById('routeDist').textContent   = dist;
+  document.getElementById('routeDur').textContent    = dur;
+  document.getElementById('routeSource').textContent = source;
+  document.getElementById('routeResult').style.display = 'flex';
+  # Makes the result card visible
+
+  showToast('Route drawn on map ✅', 'success');
+}
+# Simple UI update helper — no logic
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 16. drawRoute(geometry)
+# Draws the green dashed route line on the map
+# ─────────────────────────────────────────────────────────────────────────────
+
+function drawRoute(geometry) {
+  if (routeLayer) map.removeLayer(routeLayer);
+  # Remove previous route line if exists
+
+  if (geometry?.coordinates) {
+    const coords = geometry.coordinates.map(c => [c[1], c[0]]);
+    # OSRM returns coordinates as [lon, lat]
+    # Leaflet needs [lat, lon]
+    # So we flip: c[1] = lat, c[0] = lon
+
+    routeLayer = L.polyline(coords, {
+      color: '#00e5a0',    # green color
+      weight: 4,           # line thickness in pixels
+      opacity: 0.85,       # slight transparency
+      dashArray: '8, 4',   # dashed line: 8px dash, 4px gap
+    }).addTo(map);
+
+    map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+    # Zoom map to fit the entire route on screen
+    # padding: 50px space around the edges
+  }
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+async function checkServers() {
+Check FastAPI
+try {
+await fetch(${FASTAPI_URL}/, { signal: AbortSignal.timeout(4000) });
+# AbortSignal.timeout(4000) = give up after 4 seconds
+const el = document.getElementById('fastapiStatus');
+el.textContent = 'Running ✓';
+el.style.color = 'var(--accent)';  # green
+showToast('FastAPI is running ✅', 'success');
+} catch(e) {
+const el = document.getElementById('fastapiStatus');
+el.textContent = 'Offline ✗';
+el.style.color = 'var(--danger)';  # red
+showToast('FastAPI not reachable — check server URL', 'error');
+}
+Check OSRM
+try {
+const r = await fetch(
+${OSRM_URL}/nearest/v1/driving/83.3185,17.7384,
+{ signal: AbortSignal.timeout(4000) }
+);
+const d = await r.json();
+const el = document.getElementById('osrmStatus');
+if (d.code === 'Ok') {
+el.textContent = 'Running ✓';
+el.style.color = 'var(--accent)';
+}
+} catch(e) {
+const el = document.getElementById('osrmStatus');
+el.textContent = 'Offline ✗';
+el.style.color = 'var(--danger)';
+showToast('OSRM not reachable on :5000', 'error');
+}
+}
+─────────────────────────────────────────────────────────────────────────────
+18. updateFriendCard(userId, lat, lon)
+Updates the live friend card in the Watch tab
+─────────────────────────────────────────────────────────────────────────────
+function updateFriendCard(userId, lat, lon) {
+const list = document.getElementById('watchList');
+let card   = document.getElementById(card-${userId});
+const now  = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+Current time for "last seen" display
+const colors = ['#7c3aed', '#f59e0b', '#ef4444', '#3b82f6'];
+const color  = colors[userId.charCodeAt(0) % colors.length];
+Pick avatar color based on first letter of userId
+charCodeAt(0) = ASCII code of first letter
+% colors.length = keeps it within array range
+Same user always gets same color
+if (!card) {
+list.innerHTML = '';
+# Clear the "No one sharing" empty state
+card = document.createElement('div');
+card.className = 'person-card active-card';
+card.id = `card-${userId}`;
+card.onclick = () => { if (friendPos) map.setView([friendPos.lat, friendPos.lon], 15); };
+# Clicking the card jumps map to friend's location
+
+list.appendChild(card);
+}
+card.innerHTML =  <div class="person-avatar" style="background:${color}22;color:${color}"> ${userId[0].toUpperCase()} </div> <div class="person-info"> <div class="person-name">${userId}</div> <div class="person-coords">${lat.toFixed(5)}, ${lon.toFixed(5)}</div> </div> <div class="person-status"> <div class="online-dot live"></div> <div class="person-time">${now}</div> </div>;
+Rebuilds card HTML with latest coords and time
+online-dot live = green pulsing dot
+}
+─────────────────────────────────────────────────────────────────────────────
+19. centerOnMe()
+Map button 🎯 — jumps map to YOUR location
+─────────────────────────────────────────────────────────────────────────────
+function centerOnMe() {
+if (myPos) map.setView([myPos.lat, myPos.lon], 15);
+setView(coords, zoom) — zoom 15 = street level
+else showToast('Your location not set', 'error');
+}
+─────────────────────────────────────────────────────────────────────────────
+20. centerOnFriend()
+Map button 👤 — jumps map to FRIEND'S location
+─────────────────────────────────────────────────────────────────────────────
+function centerOnFriend() {
+if (friendPos) map.setView([friendPos.lat, friendPos.lon], 15);
+else showToast('Friend not located yet', 'error');
+}
+─────────────────────────────────────────────────────────────────────────────
+21. fitAll()
+Map button ⊡ — zooms map to show BOTH pins at once
+─────────────────────────────────────────────────────────────────────────────
+function fitAll() {
+const pts = [];
+if (myPos)     pts.push([myPos.lat, myPos.lon]);
+if (friendPos) pts.push([friendPos.lat, friendPos.lon]);
+Build array of all known positions
+if (pts.length > 1) {
+map.fitBounds(pts, { padding: [60, 60] });
+# fitBounds = automatically zooms and pans to show all points
+# padding = 60px breathing room around edges
+}
+else if (pts.length === 1) map.setView(pts[0], 14);
+If only one location known, just center on it
+else showToast('No locations yet', 'info');
+}
+─────────────────────────────────────────────────────────────────────────────
+22. switchTab(name)
+Switches between Share / Watch / Route tabs in sidebar
+─────────────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+['share', 'watch', 'route'].forEach((n, i) =>
+document.querySelectorAll('.tab')[i].classList.toggle('active', n === name)
+);
+Loop through all 3 tab buttons
+Add 'active' class only to the clicked one
+Remove 'active' from the others
+document.querySelectorAll('.panel').forEach(p =>
+p.classList.toggle('active', p.id === panel-${name})
+);
+Show only the matching panel (display:flex)
+Hide the other two panels (display:none)
+Done via CSS: .panel { display:none } .panel.active { display:flex }
+}
+─────────────────────────────────────────────────────────────────────────────
+23. showToast(msg, type)
+Shows a popup notification at top-right of screen
+─────────────────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+const c = document.getElementById('toastContainer');
+const t = document.createElement('div');
+t.className   = toast ${type};
+type = 'success' (green border) | 'error' (red) | 'info' (purple)
+t.textContent = msg;
+c.appendChild(t);
+Add to DOM — CSS animation slides it in from right
+setTimeout(() => t.remove(), 3500);
+Auto-remove after 3.5 seconds
+}
+─────────────────────────────────────────────────────────────────────────────
+24. INIT — runs when page loads (VERY LAST LINES)
+─────────────────────────────────────────────────────────────────────────────
+initMap();
+Creates the map immediately when page opens
+const isLocal = FASTAPI_URL.includes('localhost');
+document.getElementById('serverStatus').textContent = isLocal ? 'localhost' : 'tunnel';
+document.getElementById('serverStatus').style.color = 'var(--accent)';
