@@ -7,15 +7,11 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 
-# ─────────────────────────────────────────────────────────────
-#  App + Socket.io
-# ─────────────────────────────────────────────────────────────
-
-app = FastAPI(title="LocSync API", version="2.0.0")
+app = FastAPI(title="LocSync API", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://rotten-snails-love.loca.lt"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -27,28 +23,20 @@ sio = socketio.AsyncServer(
     engineio_logger=False,
 )
 
-# uvicorn serves THIS object (wraps FastAPI + socket.io)
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
 OSRM_URL = os.getenv("OSRM_URL", "http://osrm:5000")
 
-# ─────────────────────────────────────────────────────────────
-#  In-Memory State
-# ─────────────────────────────────────────────────────────────
+connected_users: dict[str, str] = {}
+socket_to_user: dict[str, str] = {}
+sharing_sessions: dict[str, set] = {}
+last_locations: dict[str, dict] = {}
+user_display_names: dict[str, str] = {}
 
-connected_users: dict[str, str] = {}   # user_id  -> socket_id
-socket_to_user: dict[str, str] = {}    # socket_id -> user_id
-sharing_sessions: dict[str, str] = {}  # sharer_id -> watcher_id
-last_locations: dict[str, dict] = {}   # user_id  -> { lat, lon, timestamp, ... }
-
-
-# ─────────────────────────────────────────────────────────────
-#  Pydantic Models
-# ─────────────────────────────────────────────────────────────
 
 class StartSharing(BaseModel):
     sharer_id: str
-    watcher_id: str
+    watcher_id: str | None = None
 
 class StopSharing(BaseModel):
     sharer_id: str
@@ -64,10 +52,6 @@ class RouteRequest(BaseModel):
     to_lat: float
     to_lon: float
 
-
-# ─────────────────────────────────────────────────────────────
-#  OSRM Helpers
-# ─────────────────────────────────────────────────────────────
 
 async def snap_to_road(lat: float, lon: float) -> dict:
     try:
@@ -101,10 +85,6 @@ async def get_route(from_lat, from_lon, to_lat, to_lon) -> dict:
     }
 
 
-# ─────────────────────────────────────────────────────────────
-#  REST Endpoints
-# ─────────────────────────────────────────────────────────────
-
 @app.get("/api/health")
 def health():
     return {"status": "ok", "osrm": OSRM_URL}
@@ -112,17 +92,45 @@ def health():
 
 @app.get("/api/status")
 def status():
+    sessions_info = {k: list(v) for k, v in sharing_sessions.items()}
     return {
         "connected_users": list(connected_users.keys()),
-        "active_sessions": sharing_sessions,
+        "active_sessions": sessions_info,
         "total_connected": len(connected_users),
+        "last_locations": {
+            uid: {**loc, "is_sharing": uid in sharing_sessions}
+            for uid, loc in last_locations.items()
+        }
     }
+
+
+@app.get("/api/active-sharers")
+def active_sharers():
+    result = []
+    for sharer_id in sharing_sessions:
+        loc = last_locations.get(sharer_id)
+        if loc:
+            result.append({
+                "user_id": sharer_id,
+                "display_name": user_display_names.get(sharer_id, sharer_id),
+                **loc,
+                "watcher_count": len(sharing_sessions[sharer_id]),
+            })
+    return {"sharers": result}
 
 
 @app.post("/api/start-sharing")
 def start_sharing(data: StartSharing):
-    sharing_sessions[data.sharer_id] = data.watcher_id
-    return {"status": "ok", "message": f"{data.sharer_id} sharing with {data.watcher_id}"}
+    if data.sharer_id not in sharing_sessions:
+        sharing_sessions[data.sharer_id] = set()
+    if data.watcher_id:
+        sharing_sessions[data.sharer_id].add(data.watcher_id)
+    return {
+        "status": "ok",
+        "message": f"{data.sharer_id} sharing",
+        "watchers": list(sharing_sessions[data.sharer_id]),
+        "broadcast": data.watcher_id is None,
+    }
 
 
 @app.post("/api/stop-sharing")
@@ -143,25 +151,32 @@ async def share_location(data: LocationUpdate):
         "timestamp": datetime.utcnow().isoformat(),
     }
 
-    watcher_id = sharing_sessions.get(data.user_id)
-    if not watcher_id:
-        return {"status": "ok", "note": "nobody watching"}
+    if data.user_id not in sharing_sessions:
+        return {"status": "ok", "note": "not sharing"}
 
-    watcher_socket = connected_users.get(watcher_id)
-    if not watcher_socket:
-        return {"status": "ok", "note": "watcher offline"}
+    watchers = sharing_sessions[data.user_id]
+    payload = {
+        "userId": data.user_id,
+        "displayName": user_display_names.get(data.user_id, data.user_id),
+        "lat": snapped["lat"],
+        "lon": snapped["lon"],
+        "timestamp": last_locations[data.user_id]["timestamp"],
+    }
 
-    await sio.emit(
-        "location_update",
-        {
-            "userId": data.user_id,
-            "lat": snapped["lat"],
-            "lon": snapped["lon"],
-            "timestamp": last_locations[data.user_id]["timestamp"],
-        },
-        to=watcher_socket,
-    )
-    return {"status": "ok", "snapped_lat": snapped["lat"], "snapped_lon": snapped["lon"]}
+    sent_count = 0
+    if len(watchers) == 0:
+        for uid, sid in connected_users.items():
+            if uid != data.user_id:
+                await sio.emit("location_update", payload, to=sid)
+                sent_count += 1
+    else:
+        for watcher_id in watchers:
+            watcher_socket = connected_users.get(watcher_id)
+            if watcher_socket:
+                await sio.emit("location_update", payload, to=watcher_socket)
+                sent_count += 1
+
+    return {"status": "ok", "sent_to": sent_count, "snapped_lat": snapped["lat"], "snapped_lon": snapped["lon"]}
 
 
 @app.get("/api/last-location/{user_id}")
@@ -177,24 +192,45 @@ async def route(data: RouteRequest):
     return await get_route(data.from_lat, data.from_lon, data.to_lat, data.to_lon)
 
 
-# ─────────────────────────────────────────────────────────────
-#  Socket.io Events
-# ─────────────────────────────────────────────────────────────
-
 @sio.on("connect")
 async def on_connect(sid, environ, auth):
     user_id = (auth or {}).get("userId") or (auth or {}).get("user_id")
     if not user_id:
-        return False  # reject
+        return False
 
     connected_users[user_id] = sid
     socket_to_user[sid] = user_id
+    display_name = (auth or {}).get("displayName", user_id)
+    user_display_names[user_id] = display_name
     print(f"[WS] + {user_id} ({sid})")
 
-    # Replay cached location for whoever this user is watching
-    for sharer_id, watcher_id in sharing_sessions.items():
-        if watcher_id == user_id and sharer_id in last_locations:
-            await sio.emit("location_update", {"userId": sharer_id, **last_locations[sharer_id]}, to=sid)
+    await sio.emit("user_joined", {
+        "userId": user_id,
+        "displayName": display_name,
+        "connected_users": list(connected_users.keys()),
+    })
+
+    await sio.emit("room_state", {
+        "connected_users": list(connected_users.keys()),
+        "active_sharers": [
+            {
+                "userId": uid,
+                "displayName": user_display_names.get(uid, uid),
+                **last_locations[uid],
+            }
+            for uid in sharing_sessions
+            if uid in last_locations
+        ],
+    }, to=sid)
+
+    for sharer_id, watchers in sharing_sessions.items():
+        should_send = (len(watchers) == 0) or (user_id in watchers)
+        if should_send and sharer_id in last_locations:
+            await sio.emit("location_update", {
+                "userId": sharer_id,
+                "displayName": user_display_names.get(sharer_id, sharer_id),
+                **last_locations[sharer_id],
+            }, to=sid)
 
 
 @sio.on("disconnect")
@@ -202,19 +238,24 @@ async def on_disconnect(sid):
     user_id = socket_to_user.pop(sid, None)
     if user_id:
         connected_users.pop(user_id, None)
+        sharing_sessions.pop(user_id, None)
         print(f"[WS] - {user_id}")
+        await sio.emit("user_left", {
+            "userId": user_id,
+            "connected_users": list(connected_users.keys()),
+        })
 
 
 @sio.on("ping_location")
 async def on_ping_location(sid, data):
     sharer_id = (data or {}).get("sharer_id")
     if sharer_id and sharer_id in last_locations:
-        await sio.emit("location_update", {"userId": sharer_id, **last_locations[sharer_id]}, to=sid)
+        await sio.emit("location_update", {
+            "userId": sharer_id,
+            "displayName": user_display_names.get(sharer_id, sharer_id),
+            **last_locations[sharer_id],
+        }, to=sid)
 
-
-# ─────────────────────────────────────────────────────────────
-#  Serve frontend (fallback if not using Nginx)
-# ─────────────────────────────────────────────────────────────
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if os.path.isdir(FRONTEND_DIR):

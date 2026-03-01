@@ -90,7 +90,6 @@
         }
         .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: rgba(0,255,179,0.04); }
 
-        /* Mode toggle */
         .mode-toggle { display: flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 3px; }
         .mode-btn {
             flex: 1; padding: 8px 6px; border-radius: 7px; border: none; cursor: pointer;
@@ -100,42 +99,37 @@
         }
         .mode-btn.active { background: var(--surface); color: var(--accent); border: 1px solid var(--border); }
 
-        /* Network info card */
-        .net-card {
-            background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
-        }
+        .net-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
         .net-card.lan-active { border-color: rgba(0,255,179,0.35); }
         .net-card.tunnel-active { border-color: rgba(124,92,252,0.35); }
 
-        /* QR box */
-        #qr-container canvas, #qr-container img {
-            border-radius: 8px; display: block; margin: 0 auto;
-        }
+        #qr-container canvas, #qr-container img { border-radius: 8px; display: block; margin: 0 auto; }
 
-        /* Route card */
         .route-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
         .route-stat { text-align: center; }
         .route-stat .value { font-family: 'Space Mono', monospace; font-size: 22px; font-weight: 700; color: var(--accent); line-height: 1.1; }
         .route-stat .unit { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
 
-        .friend-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; align-items: center; gap: 12px; }
+        .friend-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: border-color 0.2s; }
+        .friend-card:hover { border-color: var(--accent2); }
         .friend-avatar { width: 40px; height: 40px; border-radius: 10px; background: rgba(124,92,252,0.15); border: 1px solid rgba(124,92,252,0.3); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; color: var(--accent2); flex-shrink: 0; }
 
         header { position: relative; }
         header::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0.3; }
 
-        /* LAN badge pill */
         .mode-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px; border-radius: 20px; font-size: 10px; font-weight: 700; font-family: 'Space Mono', monospace; letter-spacing: 0.05em; }
         .mode-pill.lan    { background: rgba(0,255,179,0.1); border: 1px solid rgba(0,255,179,0.3); color: var(--accent); }
         .mode-pill.tunnel { background: rgba(124,92,252,0.1); border: 1px solid rgba(124,92,252,0.3); color: var(--accent2); }
         .mode-pill-dot { width: 6px; height: 6px; border-radius: 50%; }
         .mode-pill.lan    .mode-pill-dot { background: var(--accent); }
         .mode-pill.tunnel .mode-pill-dot { background: var(--accent2); }
+
+        .user-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 10px; font-family: 'Space Mono', monospace; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); margin: 2px; }
+        .user-badge.online { border-color: rgba(0,255,179,0.3); color: var(--accent); }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
 
-    <!-- HEADER -->
     <header class="flex items-center justify-between px-6 py-4 z-50"
             style="background:var(--surface); border-bottom: 1px solid var(--border);">
         <div class="flex items-center gap-3">
@@ -157,25 +151,22 @@
         </div>
     </header>
 
-    <!-- MAIN -->
     <main class="flex flex-1 overflow-hidden">
 
-        <!-- SIDEBAR -->
         <aside class="w-80 flex flex-col z-40 overflow-hidden" style="background:var(--surface); border-right:1px solid var(--border);">
 
             <div class="flex" style="border-bottom:1px solid var(--border);">
                 <button class="tab-btn active" id="tab-share"  onclick="switchTab('share')">Share</button>
-                <button class="tab-btn"         id="tab-watch"  onclick="switchTab('watch')">Watch</button>
-                <button class="tab-btn"         id="tab-route"  onclick="switchTab('route')">Route</button>
-                <button class="tab-btn"         id="tab-invite" onclick="switchTab('invite')">Invite</button>
+                <button class="tab-btn"        id="tab-watch"  onclick="switchTab('watch')">Users</button>
+                <button class="tab-btn"        id="tab-route"  onclick="switchTab('route')">Route</button>
+                <button class="tab-btn"        id="tab-invite" onclick="switchTab('invite')">Invite</button>
             </div>
 
             <div class="flex-1 overflow-y-auto p-5 space-y-5">
 
-                <!-- ── SHARE PANEL ── -->
+                <!-- SHARE PANEL -->
                 <div id="panel-share" class="space-y-5">
 
-                    <!-- Network mode -->
                     <section class="space-y-3">
                         <p class="label">Network Mode</p>
                         <div class="mode-toggle">
@@ -183,54 +174,67 @@
                             <button class="mode-btn"        id="btn-mode-tunnel" onclick="setMode('tunnel')">🌐 Internet</button>
                         </div>
 
-                        <!-- LAN config -->
                         <div id="lan-config" class="net-card lan-active space-y-2">
                             <p class="label" style="color:var(--accent)">Server IP on your WiFi</p>
                             <div class="flex gap-2">
                                 <input id="lanHost" class="field" style="flex:1;" placeholder="192.168.x.x" value="">
                                 <input id="lanPort" class="field" style="width:72px;" placeholder="8000" value="8000">
                             </div>
-                            <p class="mono text-[9px]" style="color:var(--muted);">Run: <code style="color:var(--accent)">uvicorn main:socket_app --host 0.0.0.0 --port 8000</code></p>
                         </div>
 
-                        <!-- Tunnel config -->
                         <div id="tunnel-config" class="net-card hidden tunnel-active space-y-2">
                             <p class="label" style="color:var(--accent2)">Tunnel URL</p>
-                            <input id="tunnelUrl" class="field" value="https://sixty-jeans-fail.loca.lt" placeholder="https://xxx.loca.lt">
+                            <input id="tunnelUrl" class="field" value="https://unennobling-guadalupe-psychometrically.ngrok-free.dev" placeholder="https://xxx.ngrok-free.app">
                         </div>
                     </section>
 
                     <div style="border-top:1px solid var(--border);"></div>
 
-                    <!-- Identity -->
                     <section class="space-y-3">
                         <p class="label">Your Identity</p>
-                        <input id="userId" class="field" value="user_a" placeholder="user_a">
+                        <input id="userId" class="field" placeholder="your name or id">
                         <button onclick="doConnect()" id="connectBtn" class="btn-primary">Connect</button>
                     </section>
 
                     <div style="border-top:1px solid var(--border);"></div>
 
-                    <!-- Share with -->
                     <section class="space-y-3">
-                        <p class="label">Share With</p>
-                        <input id="watcherId" class="field" value="user_b" placeholder="user_b">
+                        <p class="label">Broadcast to everyone</p>
+                        <p class="mono text-[10px]" style="color:var(--muted);">When you share, all connected users see your location automatically.</p>
                         <button onclick="toggleSharing()" id="shareBtn" class="btn-outline">Start Sharing</button>
+                    </section>
+
+                    <div style="border-top:1px solid var(--border);"></div>
+
+                    <section class="space-y-2">
+                        <p class="label">Online Users</p>
+                        <div id="online-users" class="flex flex-wrap gap-1">
+                            <span class="mono text-[10px]" style="color:var(--muted);">— not connected —</span>
+                        </div>
                     </section>
                 </div>
 
-                <!-- ── WATCH PANEL ── -->
+                <!-- USERS/WATCH PANEL -->
                 <div id="panel-watch" class="hidden space-y-4">
-                    <p class="label">Active Friends</p>
+                    <div class="flex items-center justify-between">
+                        <p class="label">Active Sharers</p>
+                        <button onclick="fitAll()" class="mono text-[10px] px-3 py-1 rounded-lg" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);">Fit All</button>
+                    </div>
                     <div id="friend-list">
                         <div class="text-center py-10 mono text-xs" style="color:var(--muted);">— no active shares —</div>
                     </div>
                 </div>
 
-                <!-- ── ROUTE PANEL ── -->
+                <!-- ROUTE PANEL -->
                 <div id="panel-route" class="hidden space-y-4">
-                    <p class="label">Road Route (OSRM)</p>
-                    <div id="route-empty" class="text-center py-10 mono text-xs" style="color:var(--muted);">— receive a friend's location first —</div>
+                    <p class="label">Route to Friend</p>
+                    <div class="space-y-2">
+                        <p class="label" style="color:var(--muted)">Select friend</p>
+                        <select id="routeTarget" class="field">
+                            <option value="">— pick a user —</option>
+                        </select>
+                    </div>
+                    <div id="route-empty" class="text-center py-6 mono text-xs" style="color:var(--muted);">— select a friend above —</div>
                     <div id="route-info" class="hidden space-y-3">
                         <div class="route-card flex gap-4">
                             <div class="route-stat flex-1">
@@ -243,47 +247,27 @@
                                 <div class="unit">min ETA</div>
                             </div>
                         </div>
-                        <button onclick="fetchRoute()" class="btn-outline" style="font-size:12px;">↻ Refresh Route</button>
-                        <button onclick="toggleRouteOnMap()" id="toggleRouteBtn" class="btn-outline" style="font-size:12px;">Show Route on Map</button>
+                        <button onclick="fetchRouteToSelected()" class="btn-outline" style="font-size:12px;">↻ Refresh</button>
+                        <button onclick="toggleRouteOnMap()" id="toggleRouteBtn" class="btn-outline" style="font-size:12px;">Show on Map</button>
                     </div>
                 </div>
 
-                <!-- ── INVITE PANEL ── -->
+                <!-- INVITE PANEL -->
                 <div id="panel-invite" class="hidden space-y-4">
-                    <p class="label">Invite via Same WiFi</p>
-
-                    <div class="net-card lan-active space-y-3">
-                        <p class="mono text-xs" style="color:var(--muted);">Share this QR — anyone on the same WiFi scans it to open LocSync pointed at your server.</p>
-
-                        <div class="space-y-2">
-                            <p class="label">Server URL to share</p>
-                            <input id="shareUrlInput" class="field" readonly style="font-size:11px; color:var(--accent);">
-                        </div>
-
-                        <button onclick="generateQR()" class="btn-primary" style="background:var(--accent2);">Generate QR Code</button>
-
+                    <p class="label">Invite Friends</p>
+                    <div class="net-card tunnel-active space-y-3">
+                        <p class="mono text-xs" style="color:var(--muted);">Share this link — friend opens it, enters their name, connects and shares.</p>
+                        <input id="shareUrlInput" class="field" readonly style="font-size:10px; color:var(--accent2);">
+                        <button onclick="copyInviteUrl()" class="btn-outline" style="font-size:12px;">Copy Link</button>
+                        <button onclick="generateQR()" class="btn-primary" style="background:var(--accent2);">Generate QR</button>
                         <div id="qr-container" class="flex justify-center pt-2"></div>
-                        <p id="qr-hint" class="hidden mono text-[9px] text-center" style="color:var(--muted);">
-                            Other person scans → opens app → connects → you share location → they see it
-                        </p>
-                    </div>
-
-                    <div class="net-card space-y-2">
-                        <p class="label">How LAN mode works</p>
-                        <div class="space-y-1.5 mono text-[9px]" style="color:var(--muted); line-height:1.7;">
-                            <p>1. Run FastAPI on your laptop:<br><code style="color:var(--accent)">uvicorn main:socket_app --host 0.0.0.0 --port 8000</code></p>
-                            <p>2. Find your laptop's WiFi IP:<br><code style="color:var(--accent)">ip addr  /  ipconfig</code></p>
-                            <p>3. Enter that IP in Network Mode → LAN</p>
-                            <p>4. Both phones connect to same server over WiFi</p>
-                            <p>5. No internet tunnel needed ✓</p>
-                        </div>
+                        <p id="qr-hint" class="hidden mono text-[9px] text-center" style="color:var(--muted);">Scan → open app → enter name → connect → share</p>
                     </div>
                 </div>
 
             </div>
         </aside>
 
-        <!-- MAP -->
         <div class="flex-1 relative">
             <div id="map"></div>
 
@@ -298,26 +282,31 @@
                 <span id="server-pill-text">—</span>
             </div>
 
-            <div id="last-update" class="hidden absolute top-4 right-4 z-[500] mono text-[10px] px-3 py-1.5 rounded-full"
+            <div id="users-pill" class="absolute top-4 right-4 z-[500] mono text-[10px] px-3 py-1.5 rounded-full"
                  style="background:var(--surface2); border:1px solid var(--border); color:var(--muted);">
+                <span id="users-count">0 online</span>
             </div>
         </div>
     </main>
 
 <script>
-// ─────────────────────────────────────────────────────────────
-//  Config — computed from mode
-// ─────────────────────────────────────────────────────────────
-let currentMode = 'lan';  // 'lan' | 'tunnel'
+const API_URL = 'https://unennobling-guadalupe-psychometrically.ngrok-free.dev';
+
+let currentMode = 'tunnel';
+let socket, map, myMarker, routeLayer;
+let isSharing = false, sharingInterval;
+let myPos = null, routeVisible = false;
+
+const friendMarkers = {};
+const friendPositions = {};
 
 function getServerURL() {
     if (currentMode === 'lan') {
         const host = document.getElementById('lanHost').value.trim() || '192.168.1.100';
         const port = document.getElementById('lanPort').value.trim() || '8000';
         return `http://${host}:${port}`;
-    } else {
-        return document.getElementById('tunnelUrl').value.trim() || 'https://sixty-jeans-fail.loca.lt';
     }
+    return document.getElementById('tunnelUrl').value.trim() || API_URL;
 }
 
 function setMode(mode) {
@@ -326,69 +315,42 @@ function setMode(mode) {
     document.getElementById('tunnel-config').classList.toggle('hidden', mode !== 'tunnel');
     document.getElementById('btn-mode-lan').classList.toggle('active', mode === 'lan');
     document.getElementById('btn-mode-tunnel').classList.toggle('active', mode === 'tunnel');
-
-    const pill = document.getElementById('mode-pill');
-    const pillText = document.getElementById('mode-pill-text');
-    pill.className = `mode-pill ${mode}`;
-    pillText.textContent = mode === 'lan' ? 'LAN' : 'TUNNEL';
-
+    document.getElementById('mode-pill').className = `mode-pill ${mode}`;
+    document.getElementById('mode-pill-text').textContent = mode === 'lan' ? 'LAN' : 'TUNNEL';
     updateServerPill();
     updateShareUrlInput();
 }
 
 function updateServerPill() {
-    const url = getServerURL();
-    document.getElementById('server-pill-text').textContent = url;
+    document.getElementById('server-pill-text').textContent = getServerURL();
 }
 
 function updateShareUrlInput() {
     const base = getServerURL();
-    const userId = document.getElementById('userId').value || 'user_b';
-    // Deep link: open LocSync with server pre-filled
-    const shareUrl = `${base}/?server=${encodeURIComponent(base)}&watcherId=${encodeURIComponent(userId)}`;
-    document.getElementById('shareUrlInput').value = shareUrl;
+    document.getElementById('shareUrlInput').value = `${base}/?server=${encodeURIComponent(base)}`;
 }
 
-// Auto-detect current origin as LAN IP if served from local network
-(function autoDetectLAN() {
-    const host = window.location.hostname;
-    document.getElementById('lanHost').value = host;
-    document.getElementById('lanPort').value = '8000';
+function copyInviteUrl() {
+    navigator.clipboard.writeText(document.getElementById('shareUrlInput').value);
+    alert('Link copied!');
+}
+
+(function init() {
+    setMode('tunnel');
+    document.getElementById('lanHost').value = window.location.hostname;
     updateServerPill();
     updateShareUrlInput();
-})();
 
-// Handle ?server= deep link param
-(function handleDeepLink() {
     const params = new URLSearchParams(window.location.search);
     if (params.has('server')) {
         const srv = params.get('server');
-        if (srv.includes('loca.lt') || srv.startsWith('https://')) {
-            setMode('tunnel');
-            document.getElementById('tunnelUrl').value = srv;
-        } else {
-            setMode('lan');
-            const url = new URL(srv);
-            document.getElementById('lanHost').value = url.hostname;
-            document.getElementById('lanPort').value = url.port || '8000';
-        }
-    }
-    if (params.has('watcherId')) {
-        document.getElementById('watcherId').value = params.get('watcherId');
-        document.getElementById('userId').value = 'user_b';
+        setMode('tunnel');
+        document.getElementById('tunnelUrl').value = srv;
+        updateServerPill();
+        updateShareUrlInput();
     }
 })();
 
-// ─────────────────────────────────────────────────────────────
-//  State
-// ─────────────────────────────────────────────────────────────
-let socket, map, myMarker, friendMarker, routeLayer;
-let isSharing = false, sharingInterval;
-let myPos = null, friendPos = null, routeVisible = false;
-
-// ─────────────────────────────────────────────────────────────
-//  Map
-// ─────────────────────────────────────────────────────────────
 function initMap() {
     map = L.map('map', { zoomControl: false }).setView([17.7384, 83.3185], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(map);
@@ -396,30 +358,21 @@ function initMap() {
 }
 
 function makeIcon(cls) {
-    return L.divIcon({ className: '', html: `<div class="${cls}"></div>`, iconSize: [20,20], iconAnchor: [10,10] });
+    return L.divIcon({ className: '', html: `<div class="${cls}"></div>`, iconSize: [20, 20], iconAnchor: [10, 10] });
 }
 
-// ─────────────────────────────────────────────────────────────
-//  Connect
-// ─────────────────────────────────────────────────────────────
 function doConnect() {
     const userIdInput = document.getElementById('userId');
     const userId = userIdInput.value.trim();
-    if (!userId) return alert('Enter a User ID first');
+    if (!userId) return alert('Enter your name or ID first');
 
     const serverURL = getServerURL();
     document.getElementById('connectBtn').innerText = 'Connecting…';
 
-    const opts = {
+    socket = io(serverURL, {
         auth: { userId },
         transports: ['websocket', 'polling'],
-    };
-    // For localtunnel — bypass interstitial
-    if (serverURL.includes('loca.lt')) {
-        opts.extraHeaders = { 'bypass-tunnel-reminder': 'true' };
-    }
-
-    socket = io(serverURL, opts);
+    });
 
     socket.on('connect', () => {
         setStatus('connected');
@@ -434,10 +387,33 @@ function doConnect() {
     socket.on('connect_error', (err) => {
         setStatus('disconnected');
         document.getElementById('connectBtn').innerText = 'Retry';
-        alert(`Cannot reach server at ${serverURL}\n\nMake sure FastAPI is running and both devices are on the same WiFi.\n\nError: ${err.message}`);
+        document.getElementById('connectBtn').disabled = false;
+        alert(`Cannot reach server at ${serverURL}\n\nMake sure FastAPI is running and your tunnel is active.\n\nError: ${err.message}`);
     });
 
     socket.on('location_update', handleFriendUpdate);
+
+    socket.on('user_joined', (data) => {
+        renderOnlineUsers(data.connected_users);
+    });
+
+    socket.on('user_left', (data) => {
+        const uid = data.userId;
+        if (friendMarkers[uid]) {
+            map.removeLayer(friendMarkers[uid]);
+            delete friendMarkers[uid];
+            delete friendPositions[uid];
+        }
+        renderOnlineUsers(data.connected_users);
+        renderFriendCards();
+    });
+
+    socket.on('room_state', (data) => {
+        renderOnlineUsers(data.connected_users);
+        if (data.active_sharers) {
+            data.active_sharers.forEach(s => handleFriendUpdate(s));
+        }
+    });
 }
 
 function setStatus(state) {
@@ -452,16 +428,20 @@ function setStatus(state) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
-//  Sharing
-// ─────────────────────────────────────────────────────────────
+function renderOnlineUsers(users) {
+    const myId = document.getElementById('userId').value;
+    document.getElementById('users-count').textContent = `${users.length} online`;
+    document.getElementById('online-users').innerHTML = users.map(u =>
+        `<span class="user-badge online">${u === myId ? '● ' + u + ' (you)' : u}</span>`
+    ).join('');
+}
+
 async function toggleSharing() {
     if (!socket?.connected) return alert('Connect to server first');
-    const sharerId  = document.getElementById('userId').value;
-    const watcherId = document.getElementById('watcherId').value;
+    const sharerId = document.getElementById('userId').value;
 
     if (!isSharing) {
-        const res = await apiFetch('/api/start-sharing', 'POST', { sharer_id: sharerId, watcher_id: watcherId });
+        const res = await apiFetch('/api/start-sharing', 'POST', { sharer_id: sharerId, watcher_id: null });
         if (!res) return;
         isSharing = true;
         document.getElementById('shareBtn').innerText = '⏹ Stop Sharing';
@@ -479,17 +459,13 @@ async function toggleSharing() {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
-//  Location
-// ─────────────────────────────────────────────────────────────
 function sendLocation() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             pos => {
-                const { latitude: lat, longitude: lon } = pos.coords;
-                myPos = [lat, lon];
-                updateMyMarker(lat, lon);
-                broadcastLocation(lat, lon);
+                myPos = [pos.coords.latitude, pos.coords.longitude];
+                updateMyMarker(...myPos);
+                broadcastLocation(...myPos);
             },
             () => simulateLocation(),
             { enableHighAccuracy: true, timeout: 5000 }
@@ -501,7 +477,7 @@ function sendLocation() {
 
 function simulateLocation() {
     const base = myPos || [17.7384, 83.3185];
-    myPos = [base[0] + (Math.random()-0.5)*0.001, base[1] + (Math.random()-0.5)*0.001];
+    myPos = [base[0] + (Math.random() - 0.5) * 0.001, base[1] + (Math.random() - 0.5) * 0.001];
     updateMyMarker(...myPos);
     broadcastLocation(...myPos);
 }
@@ -509,7 +485,8 @@ function simulateLocation() {
 async function broadcastLocation(lat, lon) {
     await apiFetch('/api/share-location', 'POST', {
         user_id: document.getElementById('userId').value,
-        latitude: lat, longitude: lon,
+        latitude: lat,
+        longitude: lon,
     });
 }
 
@@ -522,51 +499,82 @@ function updateMyMarker(lat, lon) {
     map.panTo([lat, lon]);
 }
 
-// ─────────────────────────────────────────────────────────────
-//  Friend Location Update
-// ─────────────────────────────────────────────────────────────
 function handleFriendUpdate(data) {
     const lat = data.lat, lon = data.lon;
     const uid = data.userId || data.user_id;
-    friendPos = [lat, lon];
+    const myId = document.getElementById('userId').value;
+    if (uid === myId) return;
 
-    if (!friendMarker) {
-        friendMarker = L.marker([lat, lon], { icon: makeIcon('marker-friend') }).addTo(map).bindTooltip(uid);
+    friendPositions[uid] = [lat, lon];
+
+    if (!friendMarkers[uid]) {
+        friendMarkers[uid] = L.marker([lat, lon], { icon: makeIcon('marker-friend') })
+            .addTo(map)
+            .bindTooltip(uid);
     } else {
-        friendMarker.setLatLng([lat, lon]);
+        friendMarkers[uid].setLatLng([lat, lon]);
     }
 
-    renderFriendCard(uid, lat, lon, data.timestamp);
-
-    const ts = document.getElementById('last-update');
-    ts.classList.remove('hidden');
-    ts.innerText = `Updated ${formatTime(data.timestamp)}`;
-
-    if (myPos) fetchRoute();
-    switchTab('watch');
+    renderFriendCards();
+    updateRouteDropdown();
 }
 
-function renderFriendCard(uid, lat, lon, ts) {
-    const initial = uid ? uid[0].toUpperCase() : '?';
-    document.getElementById('friend-list').innerHTML = `
-        <div class="friend-card">
-            <div class="friend-avatar">${initial}</div>
-            <div class="flex-1 min-w-0">
-                <div class="text-sm font-bold truncate">${uid}</div>
-                <div class="mono text-[10px] mt-1" style="color:var(--muted);">${lat.toFixed(5)}, ${lon.toFixed(5)}</div>
-                <div class="mono text-[9px] mt-0.5" style="color:var(--muted);">${formatTime(ts)}</div>
+function renderFriendCards() {
+    const list = document.getElementById('friend-list');
+    const uids = Object.keys(friendPositions);
+
+    if (uids.length === 0) {
+        list.innerHTML = `<div class="text-center py-10 mono text-xs" style="color:var(--muted);">— no active shares —</div>`;
+        return;
+    }
+
+    list.innerHTML = uids.map(uid => {
+        const [lat, lon] = friendPositions[uid];
+        return `
+            <div class="friend-card mb-3" onclick="panToFriend('${uid}')">
+                <div class="friend-avatar">${uid[0].toUpperCase()}</div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-bold truncate">${uid}</div>
+                    <div class="mono text-[10px] mt-1" style="color:var(--muted);">${lat.toFixed(5)}, ${lon.toFixed(5)}</div>
+                </div>
+                <div class="w-2 h-2 rounded-full dot-live flex-shrink-0"></div>
             </div>
-            <div class="w-2 h-2 rounded-full dot-live flex-shrink-0"></div>
-        </div>
-        <button onclick="fitBoth()" class="btn-outline mt-3" style="font-size:11px;">⊞ Fit Both on Map</button>
-    `;
+        `;
+    }).join('');
 }
 
-// ─────────────────────────────────────────────────────────────
-//  Route
-// ─────────────────────────────────────────────────────────────
-async function fetchRoute() {
-    if (!myPos || !friendPos) return;
+function updateRouteDropdown() {
+    const sel = document.getElementById('routeTarget');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— pick a user —</option>';
+    Object.keys(friendPositions).forEach(uid => {
+        const opt = document.createElement('option');
+        opt.value = uid;
+        opt.textContent = uid;
+        sel.appendChild(opt);
+    });
+    if (current) sel.value = current;
+}
+
+function panToFriend(uid) {
+    if (friendPositions[uid]) {
+        map.panTo(friendPositions[uid]);
+    }
+}
+
+function fitAll() {
+    const allPoints = [];
+    if (myPos) allPoints.push(myPos);
+    Object.values(friendPositions).forEach(p => allPoints.push(p));
+    if (allPoints.length > 1) {
+        map.fitBounds(L.latLngBounds(allPoints), { padding: [60, 60] });
+    }
+}
+
+async function fetchRouteToSelected() {
+    const uid = document.getElementById('routeTarget').value;
+    if (!uid || !myPos || !friendPositions[uid]) return;
+    const friendPos = friendPositions[uid];
     const data = await apiFetch('/api/route', 'POST', {
         from_lat: myPos[0], from_lon: myPos[1],
         to_lat: friendPos[0], to_lon: friendPos[1],
@@ -580,10 +588,16 @@ async function fetchRoute() {
     if (routeVisible) drawRoute(data.geometry);
 }
 
+document.getElementById('routeTarget').addEventListener('change', () => {
+    document.getElementById('route-info').classList.add('hidden');
+    document.getElementById('route-empty').classList.remove('hidden');
+    fetchRouteToSelected();
+});
+
 function drawRoute(geometry) {
     if (routeLayer) map.removeLayer(routeLayer);
     const coords = geometry.coordinates.map(c => [c[1], c[0]]);
-    routeLayer = L.polyline(coords, { color:'#7c5cfc', weight:4, opacity:0.75, dashArray:'8 4' }).addTo(map);
+    routeLayer = L.polyline(coords, { color: '#7c5cfc', weight: 4, opacity: 0.75, dashArray: '8 4' }).addTo(map);
 }
 
 function toggleRouteOnMap() {
@@ -591,59 +605,41 @@ function toggleRouteOnMap() {
     const btn = document.getElementById('toggleRouteBtn');
     if (routeVisible) {
         if (window._routeGeometry) drawRoute(window._routeGeometry);
-        btn.innerText = 'Hide Route from Map';
+        btn.innerText = 'Hide from Map';
         btn.style.cssText = 'color:var(--accent);border-color:var(--accent);';
     } else {
         if (routeLayer) map.removeLayer(routeLayer);
-        btn.innerText = 'Show Route on Map';
+        btn.innerText = 'Show on Map';
         btn.style.cssText = '';
     }
 }
 
-function fitBoth() {
-    if (myPos && friendPos) map.fitBounds(L.latLngBounds([myPos, friendPos]), { padding: [60,60] });
-}
-
-// ─────────────────────────────────────────────────────────────
-//  QR Code (Invite tab)
-// ─────────────────────────────────────────────────────────────
 function generateQR() {
     updateShareUrlInput();
     const url = document.getElementById('shareUrlInput').value;
     const container = document.getElementById('qr-container');
     container.innerHTML = '';
-
     new QRCode(container, {
-        text: url,
-        width: 180,
-        height: 180,
-        colorDark: '#00ffb3',
-        colorLight: '#181828',
+        text: url, width: 180, height: 180,
+        colorDark: '#7c5cfc', colorLight: '#181828',
         correctLevel: QRCode.CorrectLevel.M,
     });
-
     document.getElementById('qr-hint').classList.remove('hidden');
 }
 
-// ─────────────────────────────────────────────────────────────
-//  Tab switcher
-// ─────────────────────────────────────────────────────────────
 function switchTab(name) {
-    ['share','watch','route','invite'].forEach(t => {
+    ['share', 'watch', 'route', 'invite'].forEach(t => {
         document.getElementById(`panel-${t}`).classList.toggle('hidden', t !== name);
         document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
     });
     if (name === 'invite') updateShareUrlInput();
+    if (name === 'route') updateRouteDropdown();
 }
 
-// ─────────────────────────────────────────────────────────────
-//  Helpers
-// ─────────────────────────────────────────────────────────────
 async function apiFetch(path, method = 'GET', body = null) {
     try {
         const serverURL = getServerURL();
         const headers = { 'Content-Type': 'application/json' };
-        if (serverURL.includes('loca.lt')) headers['bypass-tunnel-reminder'] = 'true';
         const opts = { method, headers };
         if (body) opts.body = JSON.stringify(body);
         const res = await fetch(serverURL + path, opts);
@@ -655,14 +651,7 @@ async function apiFetch(path, method = 'GET', body = null) {
     }
 }
 
-function formatTime(isoStr) {
-    if (!isoStr) return '';
-    try { return new Date(isoStr + 'Z').toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' }); }
-    catch { return isoStr; }
-}
-
-// Input change listeners to keep server pill fresh
-['lanHost','lanPort','tunnelUrl'].forEach(id => {
+['lanHost', 'lanPort', 'tunnelUrl'].forEach(id => {
     document.getElementById(id).addEventListener('input', () => {
         updateServerPill();
         updateShareUrlInput();
