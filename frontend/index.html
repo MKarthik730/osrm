@@ -184,7 +184,7 @@
 
                         <div id="tunnel-config" class="net-card hidden tunnel-active space-y-2">
                             <p class="label" style="color:var(--accent2)">Tunnel URL</p>
-                            <input id="tunnelUrl" class="field" value="https://locsync.onrender.com" placeholder="https://xxx.ngrok-free.app">
+                            <input id="tunnelUrl" class="field" placeholder="https://xxx.ngrok-free.app">
                         </div>
                     </section>
 
@@ -290,7 +290,8 @@
     </main>
 
 <script>
-const API_URL = 'https://locsync.onrender.com';
+// Automatically detect the server URL — works on Render, localhost, any deployment
+const API_URL = window.location.origin;
 
 let currentMode = 'tunnel';
 let socket, map, myMarker, routeLayer;
@@ -336,6 +337,8 @@ function copyInviteUrl() {
 }
 
 (function init() {
+    // Set tunnel URL input to current origin automatically
+    document.getElementById('tunnelUrl').value = API_URL;
     setMode('tunnel');
     document.getElementById('lanHost').value = window.location.hostname;
     updateServerPill();
