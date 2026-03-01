@@ -11,7 +11,7 @@ app = FastAPI(title="LocSync API", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://rotten-snails-love.loca.lt"],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
