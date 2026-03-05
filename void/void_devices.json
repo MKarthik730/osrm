@@ -1,0 +1,15 @@
+[
+  {
+    "name": "LAPTOP-83B2K0S1",
+    "device_type": "wifi",
+    "ip": "172.16.0.2",
+    "mac": null,
+    "hostname": "LAPTOP-83B2K0S1",
+    "vendor": "Local",
+    "os_guess": "Unknown",
+    "rssi": null,
+    "open_ports": [],
+    "services": {},
+    "mdns_type": null
+  }
+]
