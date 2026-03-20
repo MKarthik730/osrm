@@ -1,0 +1,2135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MediFlow — Healthcare OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: #060810;
+  color: #e0e4ef;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+button, input, select, textarea { font-family: inherit; font-size: inherit; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1e2a4a; border-radius: 3px; }
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.5); }
+
+/* ═══════════════════════════════════════════
+   CSS VARIABLES BY ROLE
+═══════════════════════════════════════════ */
+:root {
+  --accent: #38bdf8;
+  --bg: #060810;
+  --surface: #0c1120;
+  --surface2: #111827;
+  --border: #1e2a4a;
+  --text: #e0e4ef;
+  --muted: #4b5680;
+  --danger: #f43f5e;
+  --success: #34d399;
+  --warn: #fbbf24;
+}
+.role-admin    { --accent:#38bdf8; --glow:#38bdf820; --pill:#0c2040; }
+.role-doctor   { --accent:#34d399; --glow:#34d39920; --pill:#042a1a; }
+.role-staff    { --accent:#fbbf24; --glow:#fbbf2420; --pill:#2a1c00; }
+.role-patient  { --accent:#a78bfa; --glow:#a78bfa20; --pill:#1a0e30; }
+
+/* ═══════════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════════ */
+@keyframes fadeUp   { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn   { from { opacity:0; } to { opacity:1; } }
+@keyframes spin     { to { transform:rotate(360deg); } }
+@keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:.4} }
+@keyframes slideIn  { from { transform:translateX(-20px); opacity:0; } to { transform:translateX(0); opacity:1; } }
+@keyframes scanline { 0%{transform:translateY(-100%)} 100%{transform:translateY(100vh)} }
+
+/* ═══════════════════════════════════════════
+   LOGIN SCREEN
+═══════════════════════════════════════════ */
+#login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse 80% 50% at 15% 60%, #0a1f4020 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 85% 30%, #0a2a1a20 0%, transparent 55%),
+    #060810;
+  position: relative;
+  overflow: hidden;
+}
+#login-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(56,189,248,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56,189,248,.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+}
+.login-wrap {
+  width: 100%;
+  max-width: 420px;
+  padding: 20px;
+  animation: fadeUp .6s ease both;
+}
+.login-brand {
+  text-align: center;
+  margin-bottom: 36px;
+}
+.login-brand h1 {
+  font-family: 'Instrument Serif', serif;
+  font-size: 42px;
+  font-weight: 400;
+  letter-spacing: -.02em;
+  color: #fff;
+  line-height: 1;
+}
+.login-brand h1 span { color: var(--accent); }
+.login-brand p {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+}
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 20%; right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent)60, transparent);
+}
+.tab-row {
+  display: flex;
+  background: #080d1a;
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 28px;
+  gap: 3px;
+}
+.tab-btn {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  transition: all .2s;
+}
+.tab-btn.active {
+  background: var(--accent);
+  color: #000;
+}
+.field-wrap { margin-bottom: 16px; }
+.field-wrap label {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+.field-wrap input,
+.field-wrap select {
+  width: 100%;
+  background: #080d1a;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 11px 14px;
+  color: var(--text);
+  outline: none;
+  transition: border-color .2s;
+}
+.field-wrap input:focus,
+.field-wrap select:focus { border-color: var(--accent); }
+.field-wrap select option { background: #0c1120; }
+.btn-primary {
+  width: 100%;
+  padding: 13px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 9px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .2s;
+  letter-spacing: .04em;
+  margin-top: 6px;
+}
+.btn-primary:hover { opacity: .88; transform: translateY(-1px); }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+.alert {
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  animation: fadeIn .2s;
+}
+.alert-error   { background:#f43f5e18; border:1px solid #f43f5e40; color:#f43f5e; }
+.alert-success { background:#34d39918; border:1px solid #34d39940; color:#34d399; }
+.alert-info    { background:#38bdf818; border:1px solid #38bdf840; color:#38bdf8; }
+.alert-close { background:none; border:none; color:inherit; cursor:pointer; font-size:16px; line-height:1; opacity:.7; }
+
+/* ═══════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════ */
+#app-shell {
+  display: none;
+  min-height: 100vh;
+}
+#app-shell.visible { display: flex; }
+
+/* SIDEBAR */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: width .25s ease;
+  position: relative;
+  z-index: 10;
+}
+.sidebar.collapsed { width: 58px; }
+.sidebar-brand {
+  padding: 18px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+.sidebar-logo {
+  font-family: 'Instrument Serif', serif;
+  font-size: 20px;
+  color: var(--accent);
+  flex-shrink: 0;
+  width: 26px;
+}
+.sidebar-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 17px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebar-user {
+  padding: 14px 14px;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.sidebar-user-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--glow);
+  border: 1px solid var(--accent)40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.user-info { overflow: hidden; }
+.user-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-role-pill {
+  display: inline-block;
+  background: var(--pill);
+  color: var(--accent);
+  border: 1px solid var(--accent)30;
+  border-radius: 4px;
+  font-size: 9px;
+  padding: 1px 6px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-top: 2px;
+}
+.sidebar-nav { flex: 1; padding: 10px 8px; overflow-y: auto; }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12.5px;
+  transition: all .15s;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+.nav-item:hover { color: var(--text); background: #ffffff08; }
+.nav-item.active {
+  background: var(--glow);
+  border-color: var(--accent)30;
+  color: var(--accent);
+  font-weight: 500;
+}
+.nav-icon { font-size: 15px; flex-shrink: 0; width: 18px; text-align: center; }
+.nav-label { flex: 1; }
+.sidebar-footer {
+  padding: 10px 8px;
+  border-top: 1px solid var(--border);
+}
+.sidebar-footer button {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all .15s;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebar-footer button:hover { color: var(--text); }
+.btn-logout { color: var(--danger) !important; border-color: #f43f5e30 !important; background: #f43f5e08 !important; }
+.btn-logout:hover { background: #f43f5e18 !important; }
+
+/* MAIN AREA */
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.topbar {
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.topbar-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 20px;
+  color: #fff;
+  font-weight: 400;
+}
+.topbar-date { color: var(--muted); font-size: 11px; }
+.content-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+/* ═══════════════════════════════════════════
+   COMPONENTS
+═══════════════════════════════════════════ */
+.section { animation: fadeUp .3s ease both; }
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.card-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+/* Stat grid */
+.stat-grid { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; }
+.stat-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  flex: 1;
+  min-width: 110px;
+}
+.stat-val {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--accent);
+  font-family: 'Instrument Serif', serif;
+  line-height: 1;
+}
+.stat-lbl { color: var(--muted); font-size: 10px; margin-top: 5px; letter-spacing: .06em; text-transform: uppercase; }
+
+/* Table */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th {
+  text-align: left;
+  padding: 9px 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 500;
+}
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #1e2a4a20;
+  color: #c5cce0;
+  vertical-align: middle;
+}
+tr:hover td { background: #ffffff04; }
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  padding: 48px;
+  font-size: 12px;
+}
+.empty-state .empty-icon { font-size: 32px; margin-bottom: 12px; opacity: .4; }
+
+/* Badges */
+.badge {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  border: 1px solid;
+}
+.badge-scheduled  { color:#38bdf8; border-color:#38bdf840; background:#38bdf815; }
+.badge-completed  { color:#34d399; border-color:#34d39940; background:#34d39915; }
+.badge-cancelled  { color:#f43f5e; border-color:#f43f5e40; background:#f43f5e15; }
+.badge-in_progress{ color:#fbbf24; border-color:#fbbf2440; background:#fbbf2415; }
+.badge-no_show    { color:#6b7280; border-color:#6b728040; background:#6b728015; }
+.badge-critical   { color:#f43f5e; border-color:#f43f5e40; background:#f43f5e15; }
+.badge-high       { color:#fb923c; border-color:#fb923c40; background:#fb923c15; }
+.badge-medium     { color:#fbbf24; border-color:#fbbf2440; background:#fbbf2415; }
+.badge-low        { color:#34d399; border-color:#34d39940; background:#34d39915; }
+.badge-waiting    { color:#38bdf8; border-color:#38bdf840; background:#38bdf815; }
+.badge-called     { color:#a78bfa; border-color:#a78bfa40; background:#a78bfa15; }
+.badge-in_room    { color:#fbbf24; border-color:#fbbf2440; background:#fbbf2415; }
+.badge-done       { color:#34d399; border-color:#34d39940; background:#34d39915; }
+.badge-skipped    { color:#6b7280; border-color:#6b728040; background:#6b728015; }
+.badge-active     { color:#34d399; border-color:#34d39940; background:#34d39915; }
+.badge-inactive   { color:#6b7280; border-color:#6b728040; background:#6b728015; }
+.badge-admin      { color:#38bdf8; border-color:#38bdf840; background:#38bdf815; }
+.badge-doctor     { color:#34d399; border-color:#34d39940; background:#34d39915; }
+.badge-staff      { color:#fbbf24; border-color:#fbbf2440; background:#fbbf2415; }
+.badge-patient    { color:#a78bfa; border-color:#a78bfa40; background:#a78bfa15; }
+.badge-consultation{ color:#6366f1; border-color:#6366f140; background:#6366f115; }
+.badge-follow_up  { color:#06b6d4; border-color:#06b6d440; background:#06b6d415; }
+.badge-surgery    { color:#f43f5e; border-color:#f43f5e40; background:#f43f5e15; }
+.badge-emergency  { color:#f43f5e; border-color:#f43f5e40; background:#f43f5e15; }
+
+/* Form elements */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-grid.cols3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-grid.cols1 { grid-template-columns: 1fr; }
+.form-group { margin-bottom: 14px; }
+.form-group label {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 13px;
+  color: var(--text);
+  outline: none;
+  transition: border-color .2s;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus { border-color: var(--accent); }
+.form-group select option { background: #0c1120; }
+.form-group textarea { resize: vertical; min-height: 70px; }
+
+/* Buttons */
+.btn {
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: 1px solid;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-accent {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.btn-accent:hover:not(:disabled) { opacity: .85; transform: translateY(-1px); }
+.btn-ghost {
+  background: transparent;
+  color: var(--accent);
+  border-color: var(--border);
+}
+.btn-ghost:hover:not(:disabled) { border-color: var(--accent); background: var(--glow); }
+.btn-danger {
+  background: #f43f5e15;
+  color: var(--danger);
+  border-color: #f43f5e30;
+}
+.btn-danger:hover:not(:disabled) { background: #f43f5e25; }
+.btn-sm { padding: 5px 12px; font-size: 11px; }
+.btn-lg { padding: 12px 24px; font-size: 13px; }
+.btn-full { width: 100%; justify-content: center; }
+
+/* Spinner */
+.spinner {
+  width: 28px; height: 28px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  margin: 32px auto;
+}
+.spinner-sm {
+  width: 14px; height: 14px;
+  border-width: 2px;
+  display: inline-block;
+  animation: spin .7s linear infinite;
+  border: 2px solid #00000040;
+  border-top-color: #000;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+/* 2-col layout */
+.two-col { display: grid; grid-template-columns: 340px 1fr; gap: 20px; }
+.two-col.wide { grid-template-columns: 400px 1fr; }
+
+/* Queue item */
+.queue-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  animation: slideIn .25s ease both;
+}
+.queue-pos {
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700;
+  flex-shrink: 0;
+  background: var(--glow);
+  border: 1px solid var(--accent)40;
+  color: var(--accent);
+}
+.queue-pos.emergency {
+  background: #f43f5e18;
+  border-color: #f43f5e50;
+  color: #f43f5e;
+}
+.queue-meta { flex: 1; min-width: 0; }
+.queue-row1 { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+.queue-sub { color: var(--muted); font-size: 11px; }
+.queue-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.queue-dur { width: 70px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; color: var(--text); font-size: 12px; outline: none; }
+.queue-dur:focus { border-color: var(--accent); }
+
+/* Bar chart */
+.bar-chart { display: flex; gap: 10px; align-items: flex-end; height: 120px; padding: 0 4px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.bar-val { color: var(--accent); font-size: 11px; font-weight: 600; }
+.bar-body { width: 50%; border-radius: 4px 4px 0 0; min-height: 4px; transition: height .6s cubic-bezier(.34,1.56,.64,1); }
+.bar-lbl { color: var(--muted); font-size: 10px; text-align: center; }
+
+/* Info card list */
+.info-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border)60;
+  font-size: 12.5px;
+}
+.info-list-item:last-child { border-bottom: none; }
+.info-key { color: var(--muted); }
+.info-val { color: var(--text); font-weight: 500; }
+
+/* Patient card */
+.appt-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  animation: fadeUp .25s ease both;
+}
+.appt-card.critical { border-left-color: #f43f5e; }
+.appt-card.high     { border-left-color: #fb923c; }
+.appt-card.medium   { border-left-color: #fbbf24; }
+.appt-card.low      { border-left-color: #34d399; }
+.appt-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
+.appt-card-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.appt-card-time { color: var(--muted); font-size: 11px; }
+.appt-card-notes { color: var(--muted); font-size: 11px; margin-top: 6px; }
+
+/* Role reference */
+.role-ref-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border)60;
+}
+.role-ref-item:last-child { border-bottom: none; }
+.role-ref-desc { color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+/* Section header */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.section-header h2 {
+  font-family: 'Instrument Serif', serif;
+  font-size: 22px;
+  font-weight: 400;
+  color: #fff;
+}
+.section-header p { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+/* Filter row */
+.filter-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 18px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.filter-row .form-group { margin-bottom: 0; flex: 1; min-width: 150px; }
+
+/* Welcome banner */
+.welcome-banner {
+  background: linear-gradient(135deg, var(--glow) 0%, transparent 60%);
+  border: 1px solid var(--accent)20;
+  border-radius: 14px;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.welcome-banner::after {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 160px; height: 160px;
+  border-radius: 50%;
+  border: 1px solid var(--accent)10;
+  pointer-events: none;
+}
+.welcome-banner h2 {
+  font-family: 'Instrument Serif', serif;
+  font-size: 26px;
+  font-weight: 400;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.welcome-banner p { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     LOGIN SCREEN
+═══════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-wrap">
+    <div class="login-brand">
+      <h1>Medi<span>Flow</span></h1>
+      <p>Healthcare Scheduling System</p>
+    </div>
+    <div class="login-card">
+      <div class="tab-row">
+        <button class="tab-btn active" onclick="switchLoginTab('login')">Login</button>
+        <button class="tab-btn" onclick="switchLoginTab('register')">Register</button>
+        <button class="tab-btn" onclick="switchLoginTab('bootstrap')">First Admin</button>
+      </div>
+      <div id="login-alert"></div>
+      <div class="field-wrap">
+        <label>Username</label>
+        <input type="text" id="l-username" placeholder="enter username" autocomplete="username">
+      </div>
+      <div class="field-wrap">
+        <label>Password</label>
+        <input type="password" id="l-password" placeholder="enter password" autocomplete="current-password">
+      </div>
+      <div class="field-wrap" id="role-field" style="display:none">
+        <label>Role</label>
+        <select id="l-role" onchange="toggleAdminKey()">
+          <option value="patient">Patient</option>
+          <option value="doctor">Doctor</option>
+          <option value="staff">Staff</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="field-wrap" id="adminkey-field" style="display:none">
+        <label>Admin Key</label>
+        <input type="password" id="l-adminkey" placeholder="enter admin key">
+      </div>
+      <div id="bootstrap-info" style="display:none" class="alert alert-info" style="margin-bottom:14px">
+        Creates the first admin account and generates an admin key for future admins.
+      </div>
+      <button class="btn-primary" id="login-btn" onclick="handleAuthAction()">
+        Sign In
+      </button>
+      <div style="text-align:center;margin-top:18px;color:#2a3558;font-size:11px">MediFlow v1.0 · 2025</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     APP SHELL
+═══════════════════════════════════════════ -->
+<div id="app-shell">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">M</div>
+      <div class="sidebar-title">MediFlow</div>
+    </div>
+    <div class="sidebar-user">
+      <div class="sidebar-user-inner">
+        <div class="user-avatar" id="user-avatar">◎</div>
+        <div class="user-info">
+          <div class="user-name" id="user-name-display">—</div>
+          <span class="user-role-pill" id="user-role-pill">—</span>
+        </div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <button onclick="toggleSidebar()"><span class="nav-icon">◂</span><span class="nav-label">Collapse</span></button>
+      <button class="btn-logout" onclick="logout()"><span class="nav-icon">⏻</span><span class="nav-label">Sign Out</span></button>
+    </div>
+  </aside>
+  <!-- MAIN -->
+  <div class="main-area">
+    <div class="topbar">
+      <div class="topbar-title" id="topbar-title">Dashboard</div>
+      <div class="topbar-date" id="topbar-date"></div>
+    </div>
+    <div class="content-area" id="content-area">
+      <div class="spinner"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CORE STATE & API
+// ═══════════════════════════════════════════════════════════════
+const API = 'http://localhost:8000';
+let STATE = { token: null, role: null, username: null, userId: null, activeNav: null };
+let loginTab = 'login';
+
+async function apiFetch(path, opts = {}, token = STATE.token) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(API + path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  return data;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LOGIN HELPERS
+// ═══════════════════════════════════════════════════════════════
+function switchLoginTab(tab) {
+  loginTab = tab;
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    b.classList.toggle('active', ['login','register','bootstrap'][i] === tab);
+  });
+  document.getElementById('role-field').style.display = tab === 'register' ? 'block' : 'none';
+  document.getElementById('adminkey-field').style.display = tab === 'bootstrap' ? 'block' : 'none';
+  document.getElementById('bootstrap-info').style.display = tab === 'bootstrap' ? 'block' : 'none';
+  const btn = document.getElementById('login-btn');
+  btn.textContent = tab === 'login' ? 'Sign In' : tab === 'register' ? 'Create Account' : 'Create First Admin';
+  clearAlert('login-alert');
+  
+  // For register tab, also show admin key if admin role is selected
+  if (tab === 'register') {
+    toggleAdminKey();
+  }
+}
+
+function showAlert(id, type, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = `<div class="alert alert-${type}">${msg}<button class="alert-close" onclick="clearAlert('${id}')">×</button></div>`;
+}
+function clearAlert(id) { const el = document.getElementById(id); if (el) el.innerHTML = ''; }
+
+function toggleAdminKey() {
+  const role = document.getElementById('l-role').value;
+  document.getElementById('adminkey-field').style.display = role === 'admin' ? 'block' : 'none';
+}
+
+async function handleAuthAction() {
+  const btn = document.getElementById('login-btn');
+  const username = document.getElementById('l-username').value.trim();
+  const password = document.getElementById('l-password').value;
+  if (!username) { showAlert('login-alert','error','Username is required'); return; }
+  if (!password) { showAlert('login-alert','error','Password is required'); return; }
+  if (username.length < 3) { showAlert('login-alert','error','Username must be at least 3 characters'); return; }
+  if (password.length < 8) { showAlert('login-alert','error','Password must be at least 8 characters'); return; }
+
+  btn.disabled = true;
+  const originalText = btn.textContent;
+
+  try {
+    if (loginTab === 'login') {
+      const data = await apiFetch('/api/auth/login', { method:'POST', body: JSON.stringify({ username, password }) }, null);
+      STATE = { token: data.access_token, role: data.role, username: data.username, userId: data.user_id };
+      bootApp();
+    } else if (loginTab === 'register') {
+      const role = document.getElementById('l-role').value;
+      const adminKey = document.getElementById('l-adminkey').value;
+      
+      if (role === 'admin' && !adminKey) {
+        showAlert('login-alert','error','Admin key is required for admin registration');
+        return;
+      }
+      
+      if (role === 'admin') {
+        const data = await apiFetch('/api/auth/admin/register', { method:'POST', body: JSON.stringify({ username, password, admin_key: adminKey }) }, null);
+        showAlert('login-alert','success','Admin account created — you can now sign in');
+      } else {
+        await apiFetch('/api/auth/register', { method:'POST', body: JSON.stringify({ username, password, role }) }, null);
+        showAlert('login-alert','success','Account created — you can now sign in');
+      }
+      switchLoginTab('login');
+    } else {
+      const adminKey = document.getElementById('l-adminkey').value;
+      if (!adminKey) { showAlert('login-alert','error','Admin key is required'); return; }
+      const data = await apiFetch('/api/auth/bootstrap-admin', { method:'POST', body: JSON.stringify({ username, password, admin_key: adminKey }) }, null);
+      showAlert('login-alert','success', `Admin created! Key: ${data.admin_key}. Save it!`, true);
+      switchLoginTab('login');
+    }
+  } catch(e) {
+    showAlert('login-alert','error', e.message);
+  } finally {
+    btn.disabled = false;
+    switchLoginTab(loginTab);
+  }
+}
+
+// Enter key on password
+document.getElementById('l-password').addEventListener('keydown', e => { if(e.key==='Enter') handleAuthAction(); });
+document.getElementById('l-username').addEventListener('keydown', e => { if(e.key==='Enter') handleAuthAction(); });
+
+// ═══════════════════════════════════════════════════════════════
+// APP BOOT
+// ═══════════════════════════════════════════════════════════════
+const NAV_CONFIG = {
+  admin: [
+    { id:'overview',  icon:'◈', label:'Overview' },
+    { id:'patients',  icon:'◎', label:'Patients' },
+    { id:'doctors',   icon:'✦', label:'Doctors' },
+    { id:'branches',  icon:'⬡', label:'Branches' },
+    { id:'appts',     icon:'◻', label:'Appointments' },
+    { id:'roles',     icon:'⚙', label:'Role Manager' },
+    { id:'map-view',  icon:'🗺', label:'Map View' },
+    { id:'mediroute', icon:'🧭', label:'Find Route' },
+  ],
+  doctor: [
+    { id:'queue',    icon:'▤', label:'Live Queue' },
+    { id:'appts',    icon:'◻', label:'Appointments' },
+    { id:'slots',    icon:'◷', label:'Manage Slots' },
+  ],
+  staff: [
+    { id:'appts',    icon:'◻', label:'Appointments' },
+    { id:'book',     icon:'＋', label:'Book Appointment' },
+    { id:'queue',    icon:'▤', label:'Queue' },
+    { id:'patients', icon:'◎', label:'Patients' },
+    { id:'analytics',icon:'◈', label:'Analytics' },
+  ],
+  patient: [
+    { id:'my-appts', icon:'◻', label:'My Appointments' },
+    { id:'book',     icon:'＋', label:'Book Appointment' },
+    { id:'branches', icon:'⬡', label:'Find Branch' },
+    { id:'map-view', icon:'🗺', label:'Map View' },
+    { id:'mediroute',icon:'🧭', label:'Find Route' },
+  ],
+};
+const ROLE_ICONS = { admin:'⬡', doctor:'✦', staff:'◈', patient:'◎' };
+
+function bootApp() {
+  console.log('bootApp called, role:', STATE.role);
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-shell').className = 'visible role-' + STATE.role;
+  document.getElementById('user-avatar').textContent = ROLE_ICONS[STATE.role] || '◎';
+  document.getElementById('user-name-display').textContent = STATE.username;
+  document.getElementById('user-role-pill').textContent = STATE.role;
+  
+  const nav = document.getElementById('sidebar-nav');
+  nav.innerHTML = '';
+  (NAV_CONFIG[STATE.role] || []).forEach(item => {
+    const btn = document.createElement('button');
+    btn.className = 'nav-item';
+    btn.dataset.id = item.id;
+    btn.innerHTML = item.icon + ' ' + item.label;
+    btn.onclick = () => navigateTo(item.id);
+    nav.appendChild(btn);
+  });
+  
+  document.getElementById('topbar-date').textContent = new Date().toLocaleDateString();
+  const first = NAV_CONFIG[STATE.role]?.[0]?.id;
+  if (first) navigateTo(first);
+}
+
+function navigateTo(id) {
+  STATE.activeNav = id;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.id === id));
+  const labels = { overview:'Overview', patients:'Patients', doctors:'Doctors', branches:STATE.role==='patient'?'Find Branch':'Branches',
+    appts:'Appointments', roles:'Role Manager', queue:'Live Queue', slots:'Manage Slots',
+    book:'Book Appointment', analytics:'Analytics', 'my-appts':'My Appointments', 'map-view':'Map View', 'mediroute':'Find Route' };
+  document.getElementById('topbar-title').textContent = labels[id] || id;
+  const content = document.getElementById('content-area');
+  content.innerHTML = '<div class="spinner"></div>';
+  setTimeout(() => renderSection(id, content), 50);
+}
+
+function logout() {
+  STATE = { token:null, role:null, username:null, userId:null };
+  document.getElementById('app-shell').className = '';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('l-username').value = '';
+  document.getElementById('l-password').value = '';
+}
+
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('collapsed');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SECTION RENDERER
+// ═══════════════════════════════════════════════════════════════
+async function renderSection(id, el) {
+  try {
+    console.log('Rendering section:', id);
+    switch(id) {
+      case 'overview':  await renderAdminOverview(el); break;
+      case 'patients':  await renderPatients(el); break;
+      case 'doctors':   await renderDoctors(el); break;
+      case 'branches':  await renderBranches(el); break;
+      case 'appts':     await renderAppointments(el); break;
+      case 'roles':     renderRoleManager(el); break;
+      case 'queue':     await renderQueue(el); break;
+      case 'slots':     await renderSlots(el); break;
+      case 'book':      await renderBookAppointment(el); break;
+      case 'analytics': await renderAnalytics(el); break;
+      case 'my-appts':  await renderMyAppointments(el); break;
+      case 'map-view':   el.innerHTML = '<iframe src="/dashboard/spatial.html" style="width:100%;height:calc(100vh - 80px);border:none;"></iframe>'; break;
+      case 'mediroute':  el.innerHTML = '<iframe src="/mediroute.html" style="width:100%;height:calc(100vh - 80px);border:none;"></iframe>'; break;
+      default: el.innerHTML = '<div class="empty-state">Coming soon</div>';
+    }
+    console.log('Section rendered:', id);
+  } catch(e) {
+    console.error('Render error:', e);
+    el.innerHTML = `<div class="alert alert-error" style="max-width:500px">Render error: ${e.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
+function badge(text) {
+  const cls = 'badge badge-' + (text || '').replace(/[^a-z0-9_]/g,'_').toLowerCase();
+  return `<span class="${cls}">${text || '—'}</span>`;
+}
+function fmtDate(d) { return d ? new Date(d).toLocaleString() : '—'; }
+function fmtDateShort(d) { return d ? new Date(d).toLocaleDateString() : '—'; }
+function alertHtml(type, msg) { return `<div class="alert alert-${type}" style="margin-bottom:16px">${msg}</div>`; }
+function spinnerHtml() { return '<div class="spinner"></div>'; }
+
+function buildTable(cols, rows, emptyMsg = 'No data') {
+  if (!rows || rows.length === 0)
+    return `<div class="empty-state"><div class="empty-icon">◎</div>${emptyMsg}</div>`;
+  const thead = `<thead><tr>${cols.map(c=>`<th>${c.label}</th>`).join('')}</tr></thead>`;
+  const tbody = `<tbody>${rows.map(r=>
+    `<tr>${cols.map(c=>`<td>${c.render ? c.render(r) : (r[c.key] ?? '—')}</td>`).join('')}</tr>`
+  ).join('')}</tbody>`;
+  return `<div class="tbl-wrap"><table>${thead}${tbody}</table></div>`;
+}
+
+function buildForm(fields, submitLabel, onSubmit, id) {
+  // fields: [{label, key, type, options}]
+  const html = fields.map(f => {
+    if (f.type === 'select') {
+      const opts = f.options.map(o=>`<option value="${o.value}">${o.label}</option>`).join('');
+      return `<div class="form-group"><label>${f.label}</label><select id="${id}-${f.key}">${opts}</select></div>`;
+    }
+    return `<div class="form-group"><label>${f.label}</label><input type="${f.type||'text'}" id="${id}-${f.key}" placeholder="${f.placeholder||''}"></div>`;
+  }).join('');
+  return `<div class="section">${html}<button class="btn btn-accent btn-full btn-lg" id="${id}-submit">${submitLabel}</button></div>`;
+}
+
+function getFormValues(id, fields) {
+  const obj = {};
+  fields.forEach(f => {
+    const el = document.getElementById(`${id}-${f.key}`);
+    if (!el) return;
+    let v = el.value;
+    if (f.type === 'number' && v !== '') v = parseFloat(v);
+    if (v === '') v = f.nullable !== false ? null : v;
+    obj[f.key] = v;
+  });
+  return obj;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ADMIN — OVERVIEW
+// ═══════════════════════════════════════════════════════════════
+async function renderAdminOverview(el) {
+  el.innerHTML = '<div class="spinner"></div>';
+  const [summary, branches, doctors] = await Promise.all([
+    apiFetch('/api/analytics/summary').catch(()=>({})),
+    apiFetch('/api/branches/').catch(()=>[]),
+    apiFetch('/api/doctors/?limit=100').catch(()=>[]),
+  ]);
+  const s = summary;
+  el.innerHTML = `
+  <div class="section">
+    <div class="welcome-banner">
+      <h2>Good ${hour()}, ${STATE.username}</h2>
+      <p>Here's what's happening across MediFlow today</p>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="stat-val">${s.appointments_today ?? 0}</div><div class="stat-lbl">Today's Appointments</div></div>
+      <div class="stat-box"><div class="stat-val">${s.total_completed ?? 0}</div><div class="stat-lbl">Total Completed</div></div>
+      <div class="stat-box"><div class="stat-val">${s.total_cancelled ?? 0}</div><div class="stat-lbl">Cancelled</div></div>
+      <div class="stat-box"><div class="stat-val">${s.critical_cases ?? 0}</div><div class="stat-lbl">Critical Cases</div></div>
+      <div class="stat-box"><div class="stat-val">${branches.length}</div><div class="stat-lbl">Active Branches</div></div>
+      <div class="stat-box"><div class="stat-val">${doctors.length}</div><div class="stat-lbl">Doctors</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <div class="card">
+        <div class="card-title">Branches</div>
+        ${branches.slice(0,6).map(b=>`
+        <div class="info-list-item">
+          <span class="info-key">${b.branch_name}</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="color:var(--muted);font-size:11px">${b.city||'—'}</span>
+            ${badge(b.is_active?'active':'inactive')}
+          </div>
+        </div>`).join('') || '<div class="empty-state">No branches</div>'}
+      </div>
+      <div class="card">
+        <div class="card-title">Appointment Breakdown</div>
+        <div class="bar-chart" id="overview-chart"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>DATABASE STATUS</span>
+        <button class="btn btn-ghost btn-sm" onclick="loadDbStatus()">↺ Refresh</button>
+      </div>
+      <div id="db-status-content">
+        <div style="color:var(--muted);font-size:12px">Click Refresh to check what's in the database</div>
+      </div>
+    </div>
+  </div>`;
+
+  // Bar chart
+  const bars = [
+    { label:'Today', val: s.appointments_today||0, color:'var(--accent)' },
+    { label:'Completed', val: s.total_completed||0, color:'#34d399' },
+    { label:'Cancelled', val: s.total_cancelled||0, color:'#f43f5e' },
+    { label:'Critical', val: s.critical_cases||0, color:'#fb923c' },
+  ];
+  const max = Math.max(...bars.map(b=>b.val), 1);
+  document.getElementById('overview-chart').innerHTML = bars.map(b=>`
+    <div class="bar-col">
+      <span class="bar-val">${b.val}</span>
+      <div class="bar-body" style="height:${Math.max((b.val/max)*90,4)}px;background:${b.color}"></div>
+      <span class="bar-lbl">${b.label}</span>
+    </div>`).join('');
+}
+function hour() {
+  const h = new Date().getHours();
+  return h<12?'morning':h<17?'afternoon':'evening';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PATIENTS (Admin + Staff)
+// ═══════════════════════════════════════════════════════════════
+async function renderPatients(el) {
+  let patients = [];
+  try { patients = await apiFetch('/api/patients/?limit=100'); } catch(e){}
+
+  const canAdd = STATE.role === 'admin' || STATE.role === 'staff';
+  el.innerHTML = `
+  <div class="section">
+    <div class="section-header">
+      <div><h2>Patients</h2><p>${patients.length} registered patients</p></div>
+      ${canAdd?`<button class="btn btn-accent" onclick="document.getElementById('add-patient-panel').style.display = document.getElementById('add-patient-panel').style.display==='none'?'block':'none'">＋ Add Patient</button>`:''}
+    </div>
+    <div id="add-patient-panel" style="display:none;margin-bottom:20px">
+      <div class="card">
+        <div class="card-title">Register New Patient</div>
+        <div id="ap-alert"></div>
+        <div class="form-grid">
+          <div class="form-group"><label>Full Name *</label><input type="text" id="ap-name" placeholder="Full name"></div>
+          <div class="form-group"><label>Email</label><input type="email" id="ap-email" placeholder="email@example.com"></div>
+          <div class="form-group"><label>Phone</label><input type="text" id="ap-phone" placeholder="+91..."></div>
+          <div class="form-group"><label>Gender</label>
+            <select id="ap-gender"><option value="">Select…</option><option>male</option><option>female</option><option>other</option></select>
+          </div>
+          <div class="form-group"><label>Blood Group</label><input type="text" id="ap-blood" placeholder="A+, B-, O+…"></div>
+          <div class="form-group"><label>Date of Birth</label><input type="date" id="ap-dob"></div>
+        </div>
+        <div class="form-group"><label>Address</label><input type="text" id="ap-address" placeholder="Street address"></div>
+        <button class="btn btn-accent btn-lg" id="ap-submit" onclick="submitAddPatient()">Register Patient</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">All Patients</div>
+      ${buildTable([
+        {key:'full_name',label:'Name'},
+        {key:'email',label:'Email'},
+        {key:'phone',label:'Phone'},
+        {key:'blood_group',label:'Blood'},
+        {key:'gender',label:'Gender'},
+        {key:'is_active',label:'Status',render:r=>badge(r.is_active?'active':'inactive')},
+      ], patients, 'No patients registered yet')}
+    </div>
+  </div>`;
+}
+
+async function submitAddPatient() {
+  const btn = document.getElementById('ap-submit');
+  const name = document.getElementById('ap-name').value.trim();
+  if (!name) { showAlert('ap-alert','error','Full name is required'); return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Saving…';
+  try {
+    const payload = {
+      full_name: name,
+      email: document.getElementById('ap-email').value || null,
+      phone: document.getElementById('ap-phone').value || null,
+      gender: document.getElementById('ap-gender').value || null,
+      blood_group: document.getElementById('ap-blood').value || null,
+      date_of_birth: document.getElementById('ap-dob').value || null,
+      address: document.getElementById('ap-address').value || null,
+    };
+    await apiFetch('/api/patients/', { method:'POST', body: JSON.stringify(payload) });
+    showAlert('ap-alert','success','✅ Patient registered');
+    ['ap-name','ap-email','ap-phone','ap-blood','ap-dob','ap-address'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.value='';
+    });
+    document.getElementById('ap-gender').value = '';
+    // Reload table
+    const el = document.getElementById('content-area');
+    await renderPatients(el);
+    document.getElementById('add-patient-panel').style.display = 'block';
+  } catch(e) { showAlert('ap-alert','error', e.message); }
+  finally { btn.disabled=false; btn.textContent='Register Patient'; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DOCTORS (Admin)
+// ═══════════════════════════════════════════════════════════════
+async function renderDoctors(el) {
+  let doctors = [];
+  try { doctors = await apiFetch('/api/doctors/?limit=100'); } catch(e){}
+
+  el.innerHTML = `
+  <div class="section">
+    <div class="section-header">
+      <div><h2>Doctors</h2><p>${doctors.length} doctors on record</p></div>
+      ${STATE.role==='admin'?`<button class="btn btn-accent" onclick="document.getElementById('add-doctor-panel').style.display = document.getElementById('add-doctor-panel').style.display==='none'?'block':'none'">＋ Add Doctor</button>`:''}
+    </div>
+    <div id="add-doctor-panel" style="display:none;margin-bottom:20px">
+      <div class="card">
+        <div class="card-title">Add New Doctor</div>
+        <div id="ad-alert"></div>
+        <div class="form-grid">
+          <div class="form-group"><label>Full Name *</label><input type="text" id="ad-name" placeholder="Dr. Full Name"></div>
+          <div class="form-group"><label>Specialization</label><input type="text" id="ad-spec" placeholder="Cardiology, Ortho…"></div>
+          <div class="form-group"><label>Qualification</label><input type="text" id="ad-qual" placeholder="MBBS, MD…"></div>
+          <div class="form-group"><label>Experience (yrs)</label><input type="number" id="ad-exp" placeholder="5"></div>
+          <div class="form-group"><label>Email</label><input type="email" id="ad-email" placeholder="doctor@hospital.com"></div>
+          <div class="form-group"><label>Phone</label><input type="text" id="ad-phone" placeholder="+91…"></div>
+        </div>
+        <button class="btn btn-accent btn-lg" id="ad-submit" onclick="submitAddDoctor()">Add Doctor</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">All Doctors</div>
+      ${buildTable([
+        {key:'full_name',label:'Name'},
+        {key:'specialization',label:'Specialization'},
+        {key:'qualification',label:'Qualification'},
+        {key:'experience_yrs',label:'Exp (yrs)'},
+        {key:'avg_consult_mins',label:'Avg Consult'},
+        {key:'email',label:'Email'},
+        {key:'is_active',label:'Status',render:r=>badge(r.is_active?'active':'inactive')},
+      ], doctors, 'No doctors added yet')}
+    </div>
+  </div>`;
+}
+
+async function submitAddDoctor() {
+  const btn = document.getElementById('ad-submit');
+  const name = document.getElementById('ad-name').value.trim();
+  if (!name) { showAlert('ad-alert','error','Full name is required'); return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner-sm"></span> Saving…';
+  try {
+    const payload = {
+      full_name: name,
+      specialization: document.getElementById('ad-spec').value||null,
+      qualification: document.getElementById('ad-qual').value||null,
+      experience_yrs: document.getElementById('ad-exp').value ? parseInt(document.getElementById('ad-exp').value) : null,
+      email: document.getElementById('ad-email').value||null,
+      phone: document.getElementById('ad-phone').value||null,
+    };
+    await apiFetch('/api/doctors/', { method:'POST', body:JSON.stringify(payload) });
+    showAlert('ad-alert','success','✅ Doctor added');
+    ['ad-name','ad-spec','ad-qual','ad-exp','ad-email','ad-phone'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    await renderDoctors(document.getElementById('content-area'));
+    document.getElementById('add-doctor-panel').style.display = 'block';
+  } catch(e) { showAlert('ad-alert','error',e.message); }
+  finally { btn.disabled=false; btn.textContent='Add Doctor'; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BRANCHES
+// ═══════════════════════════════════════════════════════════════
+async function renderBranches(el) {
+  el.innerHTML = '<div class="spinner"></div>';
+  let branches = [], hospitals = [];
+  try { branches  = await apiFetch('/api/branches/'); } catch(e){}
+  try { hospitals = await apiFetch('/api/hospitals/'); } catch(e){}
+
+  if (STATE.role === 'patient') {
+    el.innerHTML = `
+    <div class="section">
+      <div class="section-header"><div><h2>Find a Branch</h2><p>All active hospital branches</p></div></div>
+      <div class="filter-row">
+        <div class="form-group"><label>Your Latitude</label><input type="number" id="b-lat" placeholder="e.g. 17.6868" step="any"></div>
+        <div class="form-group"><label>Your Longitude</label><input type="number" id="b-lng" placeholder="e.g. 83.2185" step="any"></div>
+        <button class="btn btn-ghost" onclick="findNearestBranch()">Find Nearest</button>
+      </div>
+      <div id="branch-nearest-result" style="margin-bottom:18px"></div>
+      <div class="card">
+        <div class="card-title">All Branches (${branches.length})</div>
+        ${buildTable([
+          {key:'branch_name',label:'Branch Name'},
+          {key:'city',label:'City'},
+          {key:'total_capacity',label:'Capacity'},
+          {key:'is_active',label:'Status',render:r=>badge(r.is_active?'active':'inactive')},
+        ], branches, 'No branches available')}
+      </div>
+    </div>`;
+    return;
+  }
+
+  const hospitalOpts = hospitals.map(h=>`<option value="${h.hospital_id}">${h.name}${h.chain_name?' ('+h.chain_name+')':''}</option>`).join('');
+
+  el.innerHTML = `
+  <div class="section">
+    <div class="section-header"><div><h2>Hospitals &amp; Branches</h2><p>${hospitals.length} hospitals · ${branches.length} branches</p></div></div>
+
+    ${STATE.role === 'admin' ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px">
+
+      <!-- ADD HOSPITAL -->
+      <div class="card">
+        <div class="card-title">Step 1 — Add Hospital</div>
+        <div id="ah-alert"></div>
+        <div class="form-group"><label>Hospital Name *</label><input type="text" id="ah-name" placeholder="e.g. Apollo Hospitals"></div>
+        <div class="form-group"><label>Chain / Group</label><input type="text" id="ah-chain" placeholder="e.g. Apollo Health"></div>
+        <div class="form-group"><label>Country</label><input type="text" id="ah-country" placeholder="e.g. India"></div>
+        <button class="btn btn-accent btn-full" id="ah-submit" onclick="submitAddHospital()">Create Hospital</button>
+        <div style="margin-top:14px">
+          <div class="card-title" style="margin-bottom:10px">Existing Hospitals</div>
+          ${hospitals.length ? hospitals.map(h=>`
+          <div class="info-list-item">
+            <span class="info-key">${h.name}</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="color:var(--muted);font-size:11px">${h.country||''}</span>
+              <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${h.hospital_id}','hid-copied-${h.hospital_id}')" title="Copy hospital ID">Copy ID</button>
+              <span id="hid-copied-${h.hospital_id}" style="color:#34d399;font-size:10px;display:none">✓ Copied</span>
+            </div>
+          </div>`).join('') : '<div style="color:var(--muted);font-size:12px;padding:8px 0">No hospitals yet — create one above</div>'}
+        </div>
+      </div>
+
+      <!-- ADD BRANCH -->
+      <div class="card">
+        <div class="card-title">Step 2 — Add Branch</div>
+        <div id="ab-alert"></div>
+        ${!hospitals.length ? `<div class="alert alert-error">Create a hospital first (Step 1) before adding branches.</div>` : ''}
+        <div class="form-group"><label>Hospital *</label>
+          <select id="ab-hospital">
+            <option value="">Select Hospital…</option>
+            ${hospitalOpts}
+          </select>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label>Branch Name *</label><input type="text" id="ab-name" placeholder="e.g. Jubilee Hills Branch"></div>
+          <div class="form-group"><label>City</label><input type="text" id="ab-city" placeholder="e.g. Hyderabad"></div>
+        </div>
+        <div class="form-group"><label>Address</label><input type="text" id="ab-address" placeholder="Street address"></div>
+        <div class="form-grid">
+          <div class="form-group"><label>Latitude</label><input type="number" id="ab-lat" placeholder="17.4065" step="any"></div>
+          <div class="form-group"><label>Longitude</label><input type="number" id="ab-lng" placeholder="78.4772" step="any"></div>
+          <div class="form-group"><label>Total Capacity</label><input type="number" id="ab-cap" value="100" min="1"></div>
+        </div>
+        <button class="btn btn-accent btn-full" id="ab-submit" onclick="submitAddBranch()" ${!hospitals.length?'disabled':''}>Add Branch</button>
+      </div>
+    </div>` : ''}
+
+    <!-- BRANCHES TABLE -->
+    <div class="card">
+      <div class="card-title">All Branches (${branches.length})</div>
+      ${buildTable([
+        {key:'branch_name',label:'Branch Name'},
+        {key:'city',label:'City'},
+        {key:'total_capacity',label:'Capacity'},
+        {key:'current_load',label:'Load %',render:r=>{
+          const pct = ((r.current_load||0)*100).toFixed(0);
+          const col = pct>80?'#f43f5e':pct>50?'#fbbf24':'#34d399';
+          return `<span style="color:${col}">${pct}%</span>`;
+        }},
+        {key:'latitude',label:'Lat'},
+        {key:'longitude',label:'Lng'},
+        {key:'is_active',label:'Status',render:r=>badge(r.is_active?'active':'inactive')},
+      ], branches, '<div style="color:var(--muted);text-align:center;padding:32px">No branches yet — create a hospital first, then add a branch</div>')}
+    </div>
+  </div>`;
+}
+
+function copyToClipboard(text, feedbackId) {
+  navigator.clipboard.writeText(text).then(() => {
+    const el = document.getElementById(feedbackId);
+    if (el) { el.style.display = 'inline'; setTimeout(()=>{ el.style.display='none'; }, 2000); }
+  });
+}
+
+async function submitAddHospital() {
+  const btn = document.getElementById('ah-submit');
+  const name = document.getElementById('ah-name').value.trim();
+  if (!name) { showAlert('ah-alert','error','Hospital name is required'); return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner-sm"></span> Creating…';
+  try {
+    const payload = {
+      name,
+      chain_name: document.getElementById('ah-chain').value || null,
+      country: document.getElementById('ah-country').value || null,
+    };
+    const res = await apiFetch('/api/hospitals/', { method:'POST', body:JSON.stringify(payload) });
+    showAlert('ah-alert','success',`✅ Hospital "${res.name}" created — ID: ${res.hospital_id}`);
+    document.getElementById('ah-name').value = '';
+    document.getElementById('ah-chain').value = '';
+    document.getElementById('ah-country').value = '';
+    // Reload the whole branches section to refresh hospital list
+    await renderBranches(document.getElementById('content-area'));
+  } catch(e) { showAlert('ah-alert','error',e.message); }
+  finally { btn.disabled=false; btn.textContent='Create Hospital'; }
+}
+
+async function submitAddBranch() {
+  const btn = document.getElementById('ab-submit');
+  const hospitalId = document.getElementById('ab-hospital').value;
+  const name = document.getElementById('ab-name').value.trim();
+  if (!hospitalId) { showAlert('ab-alert','error','Select a hospital'); return; }
+  if (!name) { showAlert('ab-alert','error','Branch name is required'); return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner-sm"></span> Adding…';
+  try {
+    const payload = {
+      hospital_id: hospitalId,
+      branch_name: name,
+      city: document.getElementById('ab-city').value || null,
+      address: document.getElementById('ab-address').value || null,
+      latitude: document.getElementById('ab-lat').value ? parseFloat(document.getElementById('ab-lat').value) : null,
+      longitude: document.getElementById('ab-lng').value ? parseFloat(document.getElementById('ab-lng').value) : null,
+      total_capacity: parseInt(document.getElementById('ab-cap').value) || 100,
+    };
+    const res = await apiFetch('/api/branches/', { method:'POST', body:JSON.stringify(payload) });
+    showAlert('ab-alert','success',`✅ Branch "${res.branch_name}" added in ${res.city||'—'}`);
+    ['ab-name','ab-city','ab-address','ab-lat','ab-lng'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+    document.getElementById('ab-cap').value = '100';
+    document.getElementById('ab-hospital').value = '';
+    await renderBranches(document.getElementById('content-area'));
+  } catch(e) { showAlert('ab-alert','error',e.message); }
+  finally { btn.disabled=false; btn.textContent='Add Branch'; }
+}
+
+async function findNearestBranch() {
+  const lat = parseFloat(document.getElementById('b-lat').value);
+  const lng = parseFloat(document.getElementById('b-lng').value);
+  if (isNaN(lat)||isNaN(lng)) { document.getElementById('branch-nearest-result').innerHTML = alertHtml('error','Enter valid coordinates'); return; }
+  const div = document.getElementById('branch-nearest-result');
+  div.innerHTML = spinnerHtml();
+  try {
+    const res = await apiFetch(`/api/branches/nearest?lat=${lat}&lng=${lng}&k=3`);
+    div.innerHTML = res.results?.length ?
+      `<div class="card"><div class="card-title">Nearest Branches</div>${buildTable([{key:'branch_id',label:'Branch ID'},{key:'lat',label:'Lat'},{key:'lng',label:'Lng'}], res.results)}</div>`
+      : alertHtml('info','No branches found near your location');
+  } catch(e) { div.innerHTML = alertHtml('error',e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// APPOINTMENTS (Admin + Staff + Doctor)
+// ═══════════════════════════════════════════════════════════════
+async function renderAppointments(el) {
+  el.innerHTML = '<div class="spinner"></div>';
+  let appts = [];
+  try { appts = await apiFetch('/api/appointments/?limit=100'); } catch(e){}
+
+  el.innerHTML = `
+  <div class="section">
+    <div class="section-header">
+      <div><h2>Appointments</h2><p>${appts.length} total</p></div>
+    </div>
+    <div id="appt-alert"></div>
+    <div class="card">
+      <div class="card-title">All Appointments</div>
+      ${buildTable([
+        {key:'scheduled_time',label:'Scheduled',render:r=>fmtDate(r.scheduled_time)},
+        {key:'urgency_level',label:'Urgency',render:r=>badge(r.urgency_level)},
+        {key:'appointment_type',label:'Type',render:r=>badge(r.appointment_type)},
+        {key:'status',label:'Status',render:r=>badge(r.status)},
+        {key:'notes',label:'Notes'},
+        {key:'_',label:'',render:r=>
+          r.status==='scheduled' ?
+          `<button class="btn btn-danger btn-sm" onclick="cancelAppt('${r.appointment_id}')">Cancel</button>` :
+          r.status==='in_progress' || r.status==='scheduled' ?
+          `<button class="btn btn-ghost btn-sm" onclick="showCompleteDialog('${r.appointment_id}')">Complete</button>` : ''},
+      ], appts, 'No appointments found')}
+    </div>
+  </div>`;
+}
+
+async function cancelAppt(id) {
+  if (!confirm('Cancel this appointment?')) return;
+  try {
+    await apiFetch(`/api/appointments/${id}/cancel`, { method:'PATCH' });
+    await renderAppointments(document.getElementById('content-area'));
+  } catch(e) { alert(e.message); }
+}
+
+async function showCompleteDialog(id) {
+  const mins = prompt('Enter consultation duration (minutes):', '15');
+  if (!mins) return;
+  try {
+    await apiFetch(`/api/appointments/${id}/complete?duration_mins=${parseFloat(mins)}`, { method:'PATCH' });
+    alert('Appointment completed');
+    await renderAppointments(document.getElementById('content-area'));
+  } catch(e) { alert(e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOOK APPOINTMENT (Staff + Patient)
+// ═══════════════════════════════════════════════════════════════
+async function renderBookAppointment(el) {
+  el.innerHTML = '<div class="spinner"></div>';
+  const [doctors, branches] = await Promise.all([
+    apiFetch('/api/doctors/?limit=100').catch(()=>[]),
+    apiFetch('/api/branches/').catch(()=>[]),
+  ]);
+  let patients = [];
+  if (STATE.role === 'staff' || STATE.role === 'admin') {
+    try { patients = await apiFetch('/api/patients/?limit=100'); } catch(e){}
+  }
+
+  const doctorOpts = doctors.length
+    ? doctors.map(d=>`<option value="${d.doctor_id}">${d.full_name}${d.specialization?' — '+d.specialization:''}</option>`).join('')
+    : '<option value="" disabled>No doctors found — ask admin to add doctors first</option>';
+  const branchOpts = branches.length
+    ? branches.map(b=>`<option value="${b.branch_id}">${b.branch_name}${b.city?' — '+b.city:''}</option>`).join('')
+    : '<option value="" disabled>No branches found</option>';
+  const patientOpts = patients.map(p=>`<option value="${p.patient_id}">${p.full_name}${p.email?' ('+p.email+')':''}</option>`).join('');
+
+  const isStaffOrAdmin = STATE.role === 'staff' || STATE.role === 'admin';
+  const isPatient = STATE.role === 'patient';
+
+  el.innerHTML = `
+  <div class="section" style="max-width:700px">
+    <div class="section-header"><div><h2>Book Appointment</h2><p>Schedule a new consultation</p></div></div>
+    ${!doctors.length ? `<div class="alert alert-error" style="margin-bottom:16px">⚠ No doctors in the system yet. An admin must add doctors before appointments can be booked.</div>` : ''}
+    <div class="card">
+      <div id="book-alert"></div>
+
+      ${isPatient ? `
+      <div class="alert alert-info" style="margin-bottom:16px">
+        Your patient record must exist in the system. Enter your Patient ID below, or ask staff to register you as a patient first.
+      </div>
+      <div class="form-group">
+        <label>Your Patient ID <span style="color:var(--muted);font-size:10px">(from staff or your profile)</span></label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="bk-patient-id" placeholder="paste your patient UUID here" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 13px;color:var(--text);outline:none">
+          <button class="btn btn-ghost" onclick="lookupMyPatientId()">Auto-find</button>
+        </div>
+        <div id="bk-patient-found" style="color:#34d399;font-size:11px;margin-top:5px"></div>
+      </div>` : ''}
+
+      ${isStaffOrAdmin ? `
+      <div class="form-group"><label>Patient *</label>
+        <select id="bk-patient"><option value="">Select Patient…</option>${patientOpts}</select>
+      </div>` : ''}
+
+      <div class="form-grid">
+        <div class="form-group"><label>Doctor *</label>
+          <select id="bk-doctor"><option value="">Select Doctor…</option>${doctorOpts}</select>
+        </div>
+        <div class="form-group"><label>Branch *</label>
+          <select id="bk-branch"><option value="">Select Branch…</option>${branchOpts}</select>
+        </div>
+        <div class="form-group"><label>Urgency *</label>
+          <select id="bk-urgency">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Appointment Type *</label>
+          <select id="bk-type">
+            <option value="consultation" selected>Consultation</option>
+            <option value="follow_up">Follow-up</option>
+            <option value="surgery">Surgery</option>
+            <option value="emergency">Emergency</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label>Scheduled Time *</label><input type="datetime-local" id="bk-time"></div>
+      <div class="form-group"><label>Notes</label><textarea id="bk-notes" placeholder="Optional notes…"></textarea></div>
+      <button class="btn btn-accent btn-full btn-lg" id="bk-submit" onclick="submitBookAppointment()">Book Appointment</button>
+    </div>
+  </div>`;
+}
+
+// Patient auto-lookup: uses /api/patients/me endpoint
+async function lookupMyPatientId() {
+  const feedbackEl = document.getElementById('bk-patient-found');
+  const inputEl = document.getElementById('bk-patient-id');
+  feedbackEl.style.color = '#34d399';
+  feedbackEl.textContent = 'Searching…';
+  try {
+    const me = await apiFetch('/api/patients/me');
+    inputEl.value = me.patient_id;
+    STATE.patientId = me.patient_id;  // cache for appointment filtering
+    feedbackEl.textContent = `✅ Found: ${me.full_name} (${me.email || me.phone || 'no contact info'})`;
+  } catch(e) {
+    feedbackEl.style.color = '#f43f5e';
+    feedbackEl.textContent = e.message;
+  }
+}
+
+async function submitBookAppointment() {
+  const btn = document.getElementById('bk-submit');
+  const doctorId = document.getElementById('bk-doctor').value;
+  const branchId = document.getElementById('bk-branch').value;
+  const time = document.getElementById('bk-time').value;
+  if (!doctorId) { showAlert('book-alert','error','Select a doctor'); return; }
+  if (!branchId) { showAlert('book-alert','error','Select a branch'); return; }
+  if (!time)     { showAlert('book-alert','error','Select a scheduled time'); return; }
+
+  let patientId = null;
+  if (STATE.role === 'staff' || STATE.role === 'admin') {
+    patientId = document.getElementById('bk-patient')?.value;
+    if (!patientId) { showAlert('book-alert','error','Select a patient'); return; }
+  } else if (STATE.role === 'patient') {
+    patientId = document.getElementById('bk-patient-id')?.value?.trim();
+    if (!patientId) { showAlert('book-alert','error','Enter or auto-find your Patient ID first'); return; }
+  }
+
+  btn.disabled=true; btn.innerHTML='<span class="spinner-sm"></span> Booking…';
+  try {
+    const payload = {
+      patient_id: patientId,
+      doctor_id: doctorId,
+      branch_id: branchId,
+      urgency_level: document.getElementById('bk-urgency').value,
+      appointment_type: document.getElementById('bk-type').value,
+      scheduled_time: new Date(time).toISOString(),
+      notes: document.getElementById('bk-notes').value || null,
+    };
+    await apiFetch('/api/appointments/', { method:'POST', body:JSON.stringify(payload) });
+    showAlert('book-alert','success','✅ Appointment booked successfully!');
+    document.getElementById('bk-time').value='';
+    document.getElementById('bk-notes').value='';
+    const docEl = document.getElementById('bk-doctor'); if(docEl) docEl.value='';
+    const brEl  = document.getElementById('bk-branch');  if(brEl)  brEl.value='';
+    const ptEl  = document.getElementById('bk-patient'); if(ptEl)  ptEl.value='';
+  } catch(e) { showAlert('book-alert','error',e.message); }
+  finally { btn.disabled=false; btn.textContent='Book Appointment'; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ROLE MANAGER (Admin)
+// ═══════════════════════════════════════════════════════════════
+function renderRoleManager(el) {
+  el.innerHTML = `
+  <div class="section">
+    <div class="section-header"><div><h2>Role Manager</h2><p>Promote or demote user roles · Reset passwords · Manage admin keys</p></div></div>
+    <div style="display:grid;grid-template-columns:400px 400px 1fr;gap:20px">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+          <div class="card-title">Change User Role</div>
+          <div id="rm-alert"></div>
+          <div class="form-group"><label>Username</label><input type="text" id="rm-username" placeholder="exact username"></div>
+          <div class="form-group"><label>New Role</label>
+            <select id="rm-role">
+              <option value="patient">Patient</option>
+              <option value="doctor">Doctor</option>
+              <option value="staff">Staff</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button class="btn btn-accent btn-full" id="rm-submit" onclick="submitRoleChange()">Change Role</button>
+          <p style="color:var(--muted);font-size:11px;margin-top:12px;line-height:1.6">
+            User must log in again after a role change.
+          </p>
+        </div>
+        <div class="card">
+          <div class="card-title">Force Reset Password</div>
+          <div id="pw-alert"></div>
+          <div class="form-group"><label>Username</label><input type="text" id="pw-username" placeholder="exact username"></div>
+          <div class="form-group"><label>New Password</label><input type="password" id="pw-newpass" placeholder="min 8 characters"></div>
+          <button class="btn btn-danger btn-full" id="pw-submit" onclick="submitPasswordReset()">Reset Password</button>
+          <p style="color:var(--muted);font-size:11px;margin-top:12px;line-height:1.6">
+            User will be logged out of all sessions immediately.
+          </p>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+          <div class="card-title">Admin Keys</div>
+          <div id="ak-alert"></div>
+          <div class="form-group"><label>Key Name</label><input type="text" id="ak-name" placeholder="e.g. IT Team Key"></div>
+          <button class="btn btn-accent btn-full" id="ak-submit" onclick="submitCreateAdminKey()">Generate New Key</button>
+          <div id="ak-list" style="margin-top:16px;max-height:200px;overflow-y:auto"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Role Reference</div>
+        <div class="role-ref-item">
+          ${badge('admin')}
+          <span class="role-ref-desc">Full access — manage users, doctors, branches, all analytics, role assignments</span>
+        </div>
+        <div class="role-ref-item">
+          ${badge('staff')}
+          <span class="role-ref-desc">Register patients, book and manage appointments, view analytics, manage queue</span>
+        </div>
+        <div class="role-ref-item">
+          ${badge('doctor')}
+          <span class="role-ref-desc">View live queue, complete appointments, manage own time slots</span>
+        </div>
+        <div class="role-ref-item">
+          ${badge('patient')}
+          <span class="role-ref-desc">Book own appointments, view own appointment history, find nearby branches</span>
+        </div>
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+          <div class="card-title">Troubleshooting</div>
+          <div style="color:var(--muted);font-size:12px;line-height:2">
+            <b style="color:var(--text)">403 Forbidden?</b> Your token has the wrong role.<br>
+            → Admin changes your role above → you log out → log back in.<br><br>
+            <b style="color:var(--text)">401 Unauthorized?</b> Wrong password.<br>
+            → Use Force Reset Password above, then log in again.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  loadAdminKeys();
+}
+
+async function loadAdminKeys() {
+  try {
+    const keys = await apiFetch('/api/auth/admin/keys');
+    const list = document.getElementById('ak-list');
+    if (keys.length === 0) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:12px">No admin keys yet</div>';
+    } else {
+      list.innerHTML = keys.map(k => `
+        <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="font-weight:500">${k.key_name}</div>
+          <div style="color:var(--muted);font-size:10px">Created: ${new Date(k.created_at).toLocaleString()}</div>
+        </div>
+      `).join('');
+    }
+  } catch(e) {
+    document.getElementById('ak-list').innerHTML = '<div style="color:var(--danger);font-size:12px">Failed to load keys</div>';
+  }
+}
+
+async function submitCreateAdminKey() {
+  const btn = document.getElementById('ak-submit');
+  const name = document.getElementById('ak-name').value.trim();
+  if (!name) { showAlert('ak-alert','error','Enter a key name'); return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner-sm"></span>';
+  try {
+    const res = await apiFetch('/api/auth/admin/keys', { method:'POST', body: JSON.stringify({ key_name: name }) });
+    showAlert('ak-alert','success',`Key: ${res.admin_key}`);
+    document.getElementById('ak-name').value = '';
+    loadAdminKeys();
+  } catch(e) { showAlert('ak-alert','error',e.message); }
+  finally { btn.disabled=false; btn.textContent='Generate New Key'; }
+}
+
+async function submitRoleChange() {
+  const btn = document.getElementById('rm-submit');
+  const username = document.getElementById('rm-username').value.trim();
+  const newRole = document.getElementById('rm-role').value;
+  if (!username) { showAlert('rm-alert','error','Enter a username'); return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner-sm"></span>';
+  try {
+    const res = await apiFetch(`/api/auth/users/${username}/role?new_role=${newRole}`, { method:'PATCH' });
+    showAlert('rm-alert','success',`✅ ${res.username}: ${res.old_role} → ${res.new_role}`);
+    document.getElementById('rm-username').value = '';
+  } catch(e) { showAlert('rm-alert','error',e.message); }
+  finally { btn.disabled=false; btn.textContent='Change Role'; }
+}
+
+async function submitPasswordReset() {
+  const btn = document.getElementById('pw-submit');
+  const username = document.getElementById('pw-username').value.trim();
+  const newpass  = document.getElementById('pw-newpass').value;
+  if (!username) { showAlert('pw-alert','error','Enter a username'); return; }
+  if (!newpass || newpass.length < 8) { showAlert('pw-alert','error','Password must be at least 8 characters'); return; }
+  btn.disabled=true; btn.innerHTML='<span class="spinner-sm"></span>';
+  try {
+    const res = await apiFetch(`/api/auth/users/${username}/password`, { method:'PATCH', body: JSON.stringify({ new_password: newpass }) });
+    showAlert('pw-alert','success',`✅ ${res.message}`);
+    document.getElementById('pw-username').value = '';
+    document.getElementById('pw-newpass').value = '';
+  } catch(e) { showAlert('pw-alert','error',e.message); }
+  finally { btn.disabled=false; btn.textContent='Reset Password'; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// QUEUE (Doctor + Staff)
+// ═══════════════════════════════════════════════════════════════
+async function renderQueue(el) {
+  const [doctors, branches] = await Promise.all([
+    apiFetch('/api/doctors/?limit=100').catch(()=>[]),
+    apiFetch('/api/branches/').catch(()=>[]),
+  ]);
+  const doctorOpts = doctors.map(d=>`<option value="${d.doctor_id}">${d.full_name}</option>`).join('');
+  const branchOpts = branches.map(b=>`<option value="${b.branch_id}">${b.branch_name}</option>`).join('');
+
+  el.innerHTML = `
+  <div class="section">
+    <div class="section-header"><div><h2>Live Queue</h2><p>Real-time patient queue management</p></div></div>
+    <div class="filter-row">
+      <div class="form-group"><label>Doctor</label><select id="q-doctor"><option value="">Select Doctor…</option>${doctorOpts}</select></div>
+      <div class="form-group"><label>Branch</label><select id="q-branch"><option value="">Select Branch…</option>${branchOpts}</select></div>
+      <button class="btn btn-accent" onclick="loadQueue()">Load Queue</button>
+      <button class="btn btn-ghost" onclick="loadQueue()">↺ Refresh</button>
+    </div>
+    <div id="queue-alert"></div>
+    <div id="queue-list"><div style="color:var(--muted);text-align:center;padding:48px;font-size:13px">Select a doctor and branch to view the live queue</div></div>
+  </div>`;
+}
+
+async function loadQueue() {
+  const doctorId = document.getElementById('q-doctor')?.value;
+  const branchId = document.getElementById('q-branch')?.value;
+  if (!doctorId||!branchId) { showAlert('queue-alert','error','Select both doctor and branch'); return; }
+  const div = document.getElementById('queue-list');
+  div.innerHTML = '<div class="spinner"></div>';
+  try {
+    const queue = await apiFetch(`/api/queue/live/${doctorId}/${branchId}`);
+    if (!queue.length) {
+      div.innerHTML = '<div class="empty-state"><div class="empty-icon">▤</div>Queue is empty</div>';
+      return;
+    }
+    div.innerHTML = queue.map(e=>`
+    <div class="queue-item">
+      <div class="queue-pos ${e.is_emergency?'emergency':''}">${e.is_emergency?'!':e.position}</div>
+      <div class="queue-meta">
+        <div class="queue-row1">
+          ${badge(e.status)}
+          ${e.is_emergency?`<span class="badge" style="color:#f43f5e;border-color:#f43f5e40;background:#f43f5e15">EMERGENCY</span>`:''}
+          <span style="color:var(--muted);font-size:11px">Score: ${e.priority_score?.toFixed(2)??'—'}</span>
+          <span style="color:var(--muted);font-size:11px">~${e.estimated_wait_mins??'?'} min wait</span>
+        </div>
+        <div class="queue-sub">Appt: ${e.appointment_id?.slice(0,12)}…</div>
+      </div>
+      <div class="queue-actions">
+        <input type="number" class="queue-dur" id="dur-${e.appointment_id}" placeholder="mins" value="15">
+        <button class="btn btn-accent btn-sm" onclick="completeFromQueue('${e.appointment_id}')">Complete</button>
+        <button class="btn btn-danger btn-sm" onclick="cancelApptDirect('${e.appointment_id}')">Cancel</button>
+      </div>
+    </div>`).join('');
+  } catch(e) { showAlert('queue-alert','error',e.message); }
+}
+
+async function completeFromQueue(apptId) {
+  const mins = parseFloat(document.getElementById(`dur-${apptId}`)?.value) || 15;
+  try {
+    await apiFetch(`/api/appointments/${apptId}/complete?duration_mins=${mins}`, { method:'PATCH' });
+    loadQueue();
+  } catch(e) { alert(e.message); }
+}
+
+async function cancelApptDirect(apptId) {
+  if (!confirm('Cancel this appointment?')) return;
+  try {
+    await apiFetch(`/api/appointments/${apptId}/cancel`, { method:'PATCH' });
+    loadQueue();
+  } catch(e) { alert(e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SLOTS (Doctor + Staff)
+// ═══════════════════════════════════════════════════════════════
+async function renderSlots(el) {
+  const [doctors, branches] = await Promise.all([
+    apiFetch('/api/doctors/?limit=100').catch(()=>[]),
+    apiFetch('/api/branches/').catch(()=>[]),
+  ]);
+  const doctorOpts = doctors.map(d=>`<option value="${d.doctor_id}">${d.full_name}</option>`).join('');
+  const branchOpts = branches.map(b=>`<option value="${b.branch_id}">${b.branch_name}</option>`).join('');
+
+  el.innerHTML = `
+  <div class="section">
+    <div class="section-header"><div><h2>Manage Slots</h2><p>View and create time slots</p></div></div>
+    <div style="display:grid;grid-template-columns:340px 1fr;gap:20px">
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-title">Filter Slots</div>
+          <div id="slot-alert"></div>
+          <div class="form-group"><label>Doctor</label><select id="sl-doctor"><option value="">Select…</option>${doctorOpts}</select></div>
+          <div class="form-group"><label>Branch</label><select id="sl-branch"><option value="">Select…</option>${branchOpts}</select></div>
+          <div class="form-group"><label>Date</label><input type="date" id="sl-date"></div>
+          <button class="btn btn-accent btn-full" onclick="loadSlots()">View Slots</button>
+        </div>
+        <div class="card">
+          <div class="card-title">Create Slot</div>
+          <div class="form-group"><label>Start Time</label><input type="time" id="sl-start"></div>
+          <div class="form-group"><label>End Time</label><input type="time" id="sl-end"></div>
+          <div class="form-group"><label>Capacity</label><input type="number" id="sl-cap" value="1" min="1"></div>
+          <button class="btn btn-ghost btn-full" id="sl-create" onclick="createSlot()">Create Slot</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" id="slot-list-title">SLOTS</div>
+        <div id="slot-list"><div class="empty-state"><div class="empty-icon">◷</div>Select filters and click View Slots</div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function loadSlots() {
+  const d = document.getElementById('sl-doctor')?.value;
+  const b = document.getElementById('sl-branch')?.value;
+  const dt = document.getElementById('sl-date')?.value;
+  if (!d||!b||!dt) { showAlert('slot-alert','error','Select doctor, branch, and date'); return; }
+  const div = document.getElementById('slot-list');
+  div.innerHTML = '<div class="spinner"></div>';
+  try {
+    const slots = await apiFetch(`/api/slots/available?doctor_id=${d}&branch_id=${b}&date_str=${dt}`);
+    document.getElementById('slot-list-title').textContent = `SLOTS FOR ${dt}`;
+    div.innerHTML = buildTable([
+      {key:'start_time',label:'Start'},
+      {key:'end_time',label:'End'},
+      {key:'booked_count',label:'Booked'},
+      {key:'capacity',label:'Capacity'},
+      {key:'is_available',label:'Available',render:r=>badge(r.is_available?'active':'inactive')},
+      {key:'is_peak_hour',label:'Peak',render:r=>r.is_peak_hour?`<span class="badge" style="color:#fbbf24;border-color:#fbbf2440;background:#fbbf2415">PEAK</span>`:'—'},
+    ], slots, 'No slots for this date');
+  } catch(e) { showAlert('slot-alert','error',e.message); }
+}
+
+async function createSlot() {
+  const d = document.getElementById('sl-doctor')?.value;
+  const b = document.getElementById('sl-branch')?.value;
+  const dt = document.getElementById('sl-date')?.value;
+  const start = document.getElementById('sl-start')?.value;
+  const end = document.getElementById('sl-end')?.value;
+  const cap = parseInt(document.getElementById('sl-cap')?.value)||1;
+  if (!d||!b||!dt||!start||!end) { showAlert('slot-alert','error','All fields required'); return; }
+  const btn = document.getElementById('sl-create');
+  btn.disabled=true; btn.innerHTML='<span class="spinner-sm"></span>';
+  try {
+    await apiFetch('/api/slots/', { method:'POST', body: JSON.stringify({ doctor_id:d, branch_id:b, date:dt, start_time:start, end_time:end, capacity:cap }) });
+    showAlert('slot-alert','success','✅ Slot created');
+    loadSlots();
+  } catch(e) { showAlert('slot-alert','error',e.message); }
+  finally { btn.disabled=false; btn.textContent='Create Slot'; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ANALYTICS (Admin + Staff)
+// ═══════════════════════════════════════════════════════════════
+async function renderAnalytics(el) {
+  el.innerHTML = '<div class="spinner"></div>';
+  const summary = await apiFetch('/api/analytics/summary').catch(()=>({}));
+  const s = summary;
+
+  const bars = [
+    { label:'Today', val:s.appointments_today||0, color:'var(--accent)' },
+    { label:'Completed', val:s.total_completed||0, color:'#34d399' },
+    { label:'Cancelled', val:s.total_cancelled||0, color:'#f43f5e' },
+    { label:'Critical', val:s.critical_cases||0, color:'#fb923c' },
+  ];
+  const max = Math.max(...bars.map(b=>b.val),1);
+
+  el.innerHTML = `
+  <div class="section">
+    <div class="section-header"><div><h2>Analytics</h2><p>Hospital-wide metrics</p></div></div>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="stat-val">${s.appointments_today??0}</div><div class="stat-lbl">Today</div></div>
+      <div class="stat-box"><div class="stat-val">${s.total_completed??0}</div><div class="stat-lbl">Completed</div></div>
+      <div class="stat-box"><div class="stat-val">${s.total_cancelled??0}</div><div class="stat-lbl">Cancelled</div></div>
+      <div class="stat-box"><div class="stat-val">${s.critical_cases??0}</div><div class="stat-lbl">Critical</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <div class="card">
+        <div class="card-title">Appointment Breakdown</div>
+        <div class="bar-chart">
+          ${bars.map(b=>`
+          <div class="bar-col">
+            <span class="bar-val">${b.val}</span>
+            <div class="bar-body" style="height:${Math.max((b.val/max)*90,4)}px;background:${b.color}"></div>
+            <span class="bar-lbl">${b.label}</span>
+          </div>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Quick Metrics</div>
+        <div class="info-list-item"><span class="info-key">Completion Rate</span>
+          <span class="info-val">${s.total_completed && s.total_completed+s.total_cancelled ? ((s.total_completed/(s.total_completed+s.total_cancelled))*100).toFixed(1)+'%' : '—'}</span>
+        </div>
+        <div class="info-list-item"><span class="info-key">Cancellation Rate</span>
+          <span class="info-val">${s.total_cancelled && s.total_completed+s.total_cancelled ? ((s.total_cancelled/(s.total_completed+s.total_cancelled))*100).toFixed(1)+'%' : '—'}</span>
+        </div>
+        <div class="info-list-item"><span class="info-key">Critical / Today</span>
+          <span class="info-val">${s.appointments_today ? ((s.critical_cases/s.appointments_today)*100).toFixed(1)+'%' : '—'}</span>
+        </div>
+        <div class="info-list-item"><span class="info-key">Data as of</span>
+          <span class="info-val">${new Date().toLocaleTimeString()}</span>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <div class="card-title">Advanced Analytics</div>
+      <div style="color:var(--muted);font-size:12px;line-height:1.8">
+        Use the API endpoints directly for detailed analytics:<br>
+        <code style="color:var(--accent)">/api/analytics/peak-forecast?branch_id=…&department_id=…</code><br>
+        <code style="color:var(--accent)">/api/analytics/appointment-density?branch_id=…</code><br>
+        <code style="color:var(--accent)">/api/analytics/doctor-performance?doctor_id=…</code><br>
+        <code style="color:var(--accent)">/api/analytics/wait-time-trends?department_id=…</code>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MY APPOINTMENTS (Patient)
+// ═══════════════════════════════════════════════════════════════
+async function renderMyAppointments(el) {
+  el.innerHTML = '<div class="spinner"></div>';
+  let appts = [];
+  // Try to get appointments filtered by patient_id stored in STATE
+  try {
+    const url = STATE.patientId
+      ? `/api/appointments/?patient_id=${STATE.patientId}&limit=100`
+      : '/api/appointments/?limit=100';
+    appts = await apiFetch(url);
+  } catch(e){}
+
+  const upcoming = appts.filter(a=>a.status==='scheduled');
+  const past = appts.filter(a=>a.status!=='scheduled');
+
+  el.innerHTML = `
+  <div class="section">
+    <div class="welcome-banner">
+      <h2>Hello, ${STATE.username}</h2>
+      <p>You have ${upcoming.length} upcoming appointment${upcoming.length!==1?'s':''}</p>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="stat-val">${upcoming.length}</div><div class="stat-lbl">Upcoming</div></div>
+      <div class="stat-box"><div class="stat-val">${appts.filter(a=>a.status==='completed').length}</div><div class="stat-lbl">Completed</div></div>
+      <div class="stat-box"><div class="stat-val">${appts.filter(a=>a.status==='cancelled').length}</div><div class="stat-lbl">Cancelled</div></div>
+    </div>
+    <div id="my-appt-alert"></div>
+    ${upcoming.length ? `
+    <h3 style="font-family:'Instrument Serif',serif;font-weight:400;color:#fff;margin-bottom:14px;font-size:18px">Upcoming</h3>
+    ${upcoming.map(a=>`
+    <div class="appt-card ${a.urgency_level}">
+      <div class="appt-card-top">
+        <div class="appt-card-tags">
+          ${badge(a.urgency_level)}
+          ${badge(a.appointment_type)}
+          ${badge(a.status)}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="appt-card-time">${fmtDate(a.scheduled_time)}</span>
+          <button class="btn btn-danger btn-sm" onclick="cancelMyAppt('${a.appointment_id}')">Cancel</button>
+        </div>
+      </div>
+      ${a.notes?`<div class="appt-card-notes">📝 ${a.notes}</div>`:''}
+    </div>`).join('')}` : ''}
+    ${past.length ? `
+    <h3 style="font-family:'Instrument Serif',serif;font-weight:400;color:#666;margin-top:24px;margin-bottom:14px;font-size:18px">Past</h3>
+    <div class="card">
+      ${buildTable([
+        {key:'scheduled_time',label:'Date',render:r=>fmtDateShort(r.scheduled_time)},
+        {key:'appointment_type',label:'Type',render:r=>badge(r.appointment_type)},
+        {key:'urgency_level',label:'Urgency',render:r=>badge(r.urgency_level)},
+        {key:'status',label:'Status',render:r=>badge(r.status)},
+      ], past)}
+    </div>` : ''}
+    ${!appts.length ? `
+    <div class="empty-state" style="padding:80px">
+      <div class="empty-icon" style="font-size:48px">◎</div>
+      <div style="margin-bottom:16px">No appointments yet</div>
+      <button class="btn btn-accent" onclick="navigateTo('book')">Book Your First Appointment</button>
+    </div>` : ''}
+  </div>`;
+}
+
+async function cancelMyAppt(id) {
+  if (!confirm('Cancel this appointment?')) return;
+  try {
+    await apiFetch(`/api/appointments/${id}/cancel`, { method:'PATCH' });
+    await renderMyAppointments(document.getElementById('content-area'));
+  } catch(e) { alert(e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DB STATUS DEBUG (Admin only)
+// ═══════════════════════════════════════════════════════════════
+async function loadDbStatus() {
+  const el = document.getElementById('db-status-content');
+  if (!el) return;
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const [summary, doctors, patients, branches, appts] = await Promise.all([
+      apiFetch('/api/analytics/summary').catch(()=>({})),
+      apiFetch('/api/doctors/?limit=200').catch(()=>[]),
+      apiFetch('/api/patients/?limit=200').catch(()=>[]),
+      apiFetch('/api/branches/').catch(()=>[]),
+      apiFetch('/api/appointments/?limit=200').catch(()=>[]),
+    ]);
+    el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px">
+      ${[
+        {label:'Doctors',    val:doctors.length,  ok:doctors.length>0},
+        {label:'Patients',   val:patients.length, ok:patients.length>0},
+        {label:'Branches',   val:branches.length, ok:branches.length>0},
+        {label:'Appointments',val:appts.length,   ok:true},
+        {label:'Analytics',  val:summary.appointments_today??'—', ok:true},
+      ].map(s=>`
+      <div style="background:${s.ok&&s.val>0?'#34d39910':'#f43f5e10'};border:1px solid ${s.ok&&s.val>0?'#34d39940':'#f43f5e30'};border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:22px;font-weight:600;color:${s.ok&&s.val>0?'#34d399':'#f43f5e'};font-family:'Instrument Serif',serif">${s.val}</div>
+        <div style="color:var(--muted);font-size:10px;margin-top:3px;text-transform:uppercase;letter-spacing:.06em">${s.label}</div>
+      </div>`).join('')}
+    </div>
+    <div style="color:var(--muted);font-size:11px;line-height:1.8">
+      <b style="color:var(--text)">Schemas:</b> organization · users · scheduling · queue · analytics<br>
+      <b style="color:var(--text)">If counts show 0</b> but you added data: check pgAdmin is browsing the correct schema.
+      In pgAdmin expand: Servers → PostgreSQL → Databases → mediflow → Schemas → <b>users</b> → Tables → patients.<br>
+      Do NOT look under "public" schema — MediFlow uses named schemas.
+    </div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="alert alert-error">${e.message}</div>`;
+  }
+}
+
+// ── Store patient_id when patient logs in ──
+// Called after STATE is set in bootApp
+const _origBootApp = bootApp;
+
+// ═══════════════════════════════════════════════════════════════
+// DATE DISPLAY
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('topbar-date').textContent =
+  new Date().toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+</script>
+</body>
+</html>

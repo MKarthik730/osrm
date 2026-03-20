@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediRoute — Branch Load Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --surface2: #334155;
+            --accent: #22c55e;
+            --accent2: #3b82f6;
+            --warn: #f59e0b;
+            --danger: #ef4444;
+            --border: #475569;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+        }
+        * { box-sizing: border-box; margin: 0; }
+        #map { height: 100%; width: 100%; }
+        .leaflet-tile-pane { filter: brightness(0.4) saturate(0.2) hue-rotate(180deg) invert(1); }
+        .branch-marker { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .sidebar { width: 380px; background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; }
+        .branch-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; cursor: pointer; transition: all 0.2s; }
+        .branch-item:hover { border-color: var(--accent); }
+        .branch-item.selected { border-color: var(--accent); background: rgba(34,197,94,0.1); }
+        .load-bar { height: 8px; background: var(--surface); border-radius: 4px; overflow: hidden; }
+        .load-fill { height: 100%; transition: width 0.3s; border-radius: 4px; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden" style="background:var(--bg); color:var(--text);">
+
+    <header class="px-6 py-4 flex items-center justify-between" style="background:var(--surface); border-bottom:1px solid var(--border);">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-black" style="background:var(--accent);">+</div>
+            <div>
+                <h1 class="text-xl font-bold">Branch Load <span style="color:var(--accent)">Dashboard</span></h1>
+                <p class="text-xs" style="color:var(--muted);">Real-time hospital branch monitoring</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs" style="background:var(--surface2); border:1px solid var(--border);">
+                <div class="w-2 h-2 rounded-full" style="background:var(--accent);" id="live-dot"></div>
+                <span id="live-text">Live</span>
+            </div>
+            <button onclick="refreshData()" class="px-4 py-2 rounded-lg text-sm font-semibold" style="background:var(--accent); color:#000;">Refresh</button>
+        </div>
+    </header>
+
+    <main class="flex flex-1 overflow-hidden">
+        <div class="sidebar">
+            <div class="p-4">
+                <h2 class="font-semibold mb-4">All Branches</h2>
+                <div id="branch-list" class="space-y-3"></div>
+            </div>
+        </div>
+        <div class="flex-1 relative">
+            <div id="map"></div>
+            <div id="branch-detail" class="hidden absolute top-4 right-4 z-[500] w-80 p-4 rounded-xl" style="background:var(--surface); border:1px solid var(--border);">
+                <div class="flex justify-between items-start mb-3">
+                    <h3 class="font-bold text-lg" id="detail-name">-</h3>
+                    <button onclick="closeDetail()" class="text-xs px-2 py-1 rounded" style="background:var(--surface2);">Close</button>
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <div class="text-xs mb-1" style="color:var(--muted);">Current Load</div>
+                        <div class="flex items-center gap-2">
+                            <div class="load-bar flex-1">
+                                <div class="load-fill" id="detail-load-bar" style="width:0%"></div>
+                            </div>
+                            <span class="text-sm font-semibold" id="detail-load-pct">0%</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <div class="text-xs" style="color:var(--muted);">Queue</div>
+                            <div class="text-lg font-bold" id="detail-queue">-</div>
+                        </div>
+                        <div>
+                            <div class="text-xs" style="color:var(--muted);">Doctors</div>
+                            <div class="text-lg font-bold" id="detail-doctors">-</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-xs mb-2" style="color:var(--muted);">Peak Hours</div>
+                        <div id="detail-peak" class="text-sm">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+<script>
+const API_URL = 'http://localhost:8000';
+let map;
+let branches = [];
+let hospitals = [];
+let branchMarkers = {};
+let selectedBranchId = null;
+
+const COLORS = {
+    low: '#22c55e',
+    medium: '#f59e0b',
+    high: '#ef4444'
+};
+
+function initMap() {
+    map = L.map('map', { zoomControl: true }).setView([17.7384, 83.3185], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(map);
+}
+
+function getLoadColor(loadFactor) {
+    if (loadFactor < 0.5) return COLORS.low;
+    if (loadFactor < 0.8) return COLORS.medium;
+    return COLORS.high;
+}
+
+function createBranchMarker(branch) {
+    const loadFactor = (branch.current_load || 0) / (branch.total_capacity || 1);
+    const color = getLoadColor(loadFactor);
+    
+    // Get hospital name
+    const hospital = hospitals.find(h => h.hospital_id === branch.hospital_id);
+    const hospitalName = hospital ? hospital.name : '';
+    
+    if (!branch.latitude || !branch.longitude) return null;
+    
+    const marker = L.marker([branch.latitude, branch.longitude], {
+        icon: L.divIcon({
+            className: '',
+            html: `<div class="branch-marker" style="background:${color}; color:white;">${(branch.branch_name || 'B')[0]}</div>`,
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+        })
+    }).addTo(map);
+    
+    marker.bindTooltip(`
+        <strong>${branch.branch_name}</strong><br>
+        ${hospitalName ? `Hospital: ${hospitalName}<br>` : ''}
+        City: ${branch.city || '-'}<br>
+        Load: ${Math.round(loadFactor * 100)}%<br>
+        Queue: ${branch.current_load || 0}
+    `);
+    
+    marker.on('click', () => selectBranch(branch));
+    
+    return marker;
+}
+
+function renderBranchList() {
+    const list = document.getElementById('branch-list');
+    
+    if (branches.length === 0) {
+        list.innerHTML = '<div class="text-center py-8" style="color:var(--muted);">No branches found</div>';
+        return;
+    }
+    
+    list.innerHTML = branches.map(b => {
+        const loadFactor = (b.current_load || 0) / (b.total_capacity || 1);
+        const color = getLoadColor(loadFactor);
+        const isSelected = b.branch_id === selectedBranchId;
+        const hospital = hospitals.find(h => h.hospital_id === b.hospital_id);
+        const hospitalName = hospital ? hospital.name : '';
+        
+        return `
+            <div class="branch-item ${isSelected ? 'selected' : ''}" onclick="selectBranch(branches.find(x => x.branch_id === '${b.branch_id}'))">
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <div class="font-semibold">${b.branch_name}</div>
+                        ${hospitalName ? `<div class="text-xs" style="color:var(--accent);">${hospitalName}</div>` : ''}
+                        <div class="text-xs" style="color:var(--muted);">${b.city || '-'}</div>
+                    </div>
+                    <div class="w-3 h-3 rounded-full" style="background:${color};"></div>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="load-bar flex-1">
+                        <div class="load-fill" style="width:${loadFactor * 100}%; background:${color};"></div>
+                    </div>
+                    <span class="text-xs font-semibold" style="color:${color};">${Math.round(loadFactor * 100)}%</span>
+                </div>
+                <div class="flex justify-between text-xs" style="color:var(--muted);">
+                    <span>Queue: ${b.current_load || 0}</span>
+                    <span>Capacity: ${b.total_capacity || 100}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function selectBranch(branch) {
+    if (!branch) return;
+    
+    selectedBranchId = branch.branch_id;
+    
+    if (branchMarkers[branch.branch_id]) {
+        map.setView([branch.latitude, branch.longitude], 15);
+    }
+    
+    const loadFactor = (branch.current_load || 0) / (branch.total_capacity || 1);
+    const color = getLoadColor(loadFactor);
+    const hospital = hospitals.find(h => h.hospital_id === branch.hospital_id);
+    const hospitalName = hospital ? hospital.name : '';
+    
+    document.getElementById('detail-name').textContent = branch.branch_name + (hospitalName ? ` (${hospitalName})` : '');
+    document.getElementById('detail-load-bar').style.width = `${loadFactor * 100}%`;
+    document.getElementById('detail-load-bar').style.background = color;
+    document.getElementById('detail-load-pct').textContent = `${Math.round(loadFactor * 100)}%`;
+    document.getElementById('detail-queue').textContent = branch.current_load || 0;
+    document.getElementById('detail-doctors').textContent = '-';
+    document.getElementById('detail-peak').textContent = '9AM, 12PM, 3PM';
+    
+    document.getElementById('branch-detail').classList.remove('hidden');
+    
+    renderBranchList();
+}
+
+function closeDetail() {
+    document.getElementById('branch-detail').classList.add('hidden');
+    selectedBranchId = null;
+    renderBranchList();
+}
+
+async function loadBranches() {
+    try {
+        const branchesRes = await fetch(`${API_URL}/api/branches/public`);
+        branches = await branchesRes.json();
+        
+        // Try to get hospitals
+        try {
+            const hospitalsRes = await fetch(`${API_URL}/api/hospitals/`);
+            if (hospitalsRes.ok) {
+                hospitals = await hospitalsRes.json();
+            }
+        } catch(e) { hospitals = []; }
+        
+        branches.forEach(b => {
+            if (branchMarkers[b.branch_id]) return;
+            const marker = createBranchMarker(b);
+            if (marker) branchMarkers[b.branch_id] = marker;
+        });
+        
+        renderBranchList();
+        
+        if (branches.length > 0) {
+            const validBranches = branches.filter(b => b.latitude && b.longitude);
+            if (validBranches.length > 0) {
+                const bounds = L.latLngBounds(validBranches.map(b => [b.latitude, b.longitude]));
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }
+        
+    } catch (err) {
+        console.error('Failed to load branches:', err);
+    }
+}
+
+function refreshData() {
+    Object.values(branchMarkers).forEach(m => map.removeLayer(m));
+    branchMarkers = {};
+    loadBranches();
+}
+
+let liveInterval;
+function startLiveUpdates() {
+    liveInterval = setInterval(refreshData, 30000);
+}
+
+initMap();
+loadBranches();
+startLiveUpdates();
+</script>
+</body>
+</html>

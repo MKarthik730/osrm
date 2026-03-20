@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediRoute — Intelligent Healthcare Routing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --surface2: #334155;
+            --accent: #22c55e;
+            --accent2: #3b82f6;
+            --warn: #f59e0b;
+            --danger: #ef4444;
+            --border: #475569;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+        }
+        * { box-sizing: border-box; margin: 0; }
+        #map { height: 100%; width: 100%; }
+        .leaflet-tile-pane { filter: brightness(0.4) saturate(0.2) hue-rotate(180deg) invert(1); }
+        .chat-container { display: flex; flex-direction: column; height: 100%; }
+        .messages { flex: 1; overflow-y: auto; padding: 1rem; }
+        .message { max-width: 85%; margin-bottom: 1rem; }
+        .message.user { margin-left: auto; }
+        .message.assistant { margin-right: auto; }
+        .message-content { padding: 0.75rem 1rem; border-radius: 1rem; }
+        .message.user .message-content { background: var(--accent); color: #000; border-bottom-right-radius: 0.25rem; }
+        .message.assistant .message-content { background: var(--surface2); border-bottom-left-radius: 0.25rem; }
+        .branch-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1rem; margin: 0.5rem 0; }
+        .branch-card.recommended { border-color: var(--accent); }
+        .load-indicator { width: 100%; height: 4px; background: var(--surface); border-radius: 2px; overflow: hidden; }
+        .load-bar { height: 100%; transition: width 0.3s; }
+        .load-low { background: var(--accent); }
+        .load-medium { background: var(--warn); }
+        .load-high { background: var(--danger); }
+        .btn-primary { background: var(--accent); color: #000; font-weight: 600; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer; }
+        .btn-primary:hover { opacity: 0.9; }
+        .urgency-badge { display: inline-flex; align-items: center; padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .urgency-high { background: rgba(239,68,68,0.2); color: var(--danger); }
+        .urgency-medium { background: rgba(245,158,11,0.2); color: var(--warn); }
+        .urgency-low { background: rgba(34,197,94,0.2); color: var(--accent); }
+        .marker-me { width: 24px; height: 24px; background: var(--accent); border-radius: 50%; border: 3px solid rgba(34,197,94,0.3); }
+        .marker-branch { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; border: 2px solid white; }
+        .queue-widget { background: var(--surface); border: 1px solid var(--accent); border-radius: 1rem; padding: 1.5rem; margin: 1rem 0; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <header class="flex items-center justify-between px-6 py-4 z-50" style="background:var(--surface); border-bottom:1px solid var(--border);">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-black" style="background:var(--accent);">+</div>
+            <div>
+                <h1 class="text-xl font-bold">Medi<span style="color:var(--accent)">Route</span></h1>
+                <p class="text-xs" style="color:var(--muted);">Intelligent Healthcare Routing</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <div id="connection-status" class="flex items-center gap-2 text-xs" style="color:var(--muted);">
+                <div id="status-dot" class="w-2 h-2 rounded-full" style="background:var(--danger);"></div>
+                <span id="status-text">Disconnected</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex flex-1 overflow-hidden">
+        <aside class="w-96 flex flex-col z-40 overflow-hidden" style="background:var(--surface); border-right:1px solid var(--border);">
+            <div class="p-4 border-b" style="border-color:var(--border);">
+                <div class="relative">
+                    <input id="user-location" class="w-full px-4 py-3 rounded-xl text-sm" style="background:var(--surface2); border:1px solid var(--border); color:var(--text);" placeholder="Enter your location or use GPS">
+                    <button onclick="useGPS()" class="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 rounded-lg text-xs font-semibold" style="background:var(--accent); color:#000;">GPS</button>
+                </div>
+            </div>
+
+            <div class="chat-container">
+                <div id="messages" class="messages"></div>
+                <div class="input-area">
+                    <div class="flex gap-2">
+                        <input id="message-input" class="flex-1 px-4 py-3 rounded-xl text-sm" style="background:var(--surface2); border:1px solid var(--border); color:var(--text);" placeholder="Describe your symptoms or need...">
+                        <button onclick="sendMessage()" class="btn-primary px-4">Send</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <div class="flex-1 relative">
+            <div id="map"></div>
+            <div id="route-info-panel" class="hidden absolute top-4 left-4 z-[500] p-4 rounded-xl max-w-xs" style="background:var(--surface); border:1px solid var(--border);">
+                <h3 class="font-semibold mb-2">Route to Hospital</h3>
+                <div id="route-details"></div>
+                <button onclick="clearRoute()" class="mt-2 text-xs" style="color:var(--muted);">Clear route</button>
+            </div>
+            <div id="queue-widget" class="hidden absolute bottom-4 left-4 z-[500] queue-widget" style="min-width:280px;">
+                <h3 class="font-semibold mb-2 flex items-center gap-2">
+                    <span style="color:var(--accent);">Live Queue</span>
+                </h3>
+                <div class="text-center mb-3">
+                    <div class="text-4xl font-bold" style="color:var(--accent);" id="queue-position">-</div>
+                    <div class="text-sm" style="color:var(--muted);">Your position</div>
+                </div>
+                <div class="flex justify-between text-sm mb-2">
+                    <span style="color:var(--muted);">Estimated wait</span>
+                    <span id="queue-wait">- min</span>
+                </div>
+                <div class="text-sm" style="color:var(--muted);" id="queue-doctor">Doctor: -</div>
+                <button onclick="disconnectQueue()" class="mt-3 w-full text-xs py-2 rounded-lg" style="background:var(--surface2); border:1px solid var(--border);">Leave queue</button>
+            </div>
+        </div>
+    </main>
+
+<script>
+const API_URL = window.location.origin;
+let map, userMarker, routeLayer;
+let userLocation = null;
+let currentRecommendation = null;
+let currentRoute = null;
+let queueSocket = null;
+let appointmentId = null;
+let branchMarkers = {};
+
+const BRANCH_COLORS = {
+    low: '#22c55e',
+    medium: '#f59e0b',
+    high: '#ef4444'
+};
+
+function initMap() {
+    map = L.map('map', { zoomControl: true }).setView([17.7384, 83.3185], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(map);
+}
+
+function useGPS() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                userLocation = [pos.coords.latitude, pos.coords.longitude];
+                map.setView(userLocation, 14);
+                updateUserMarker();
+                document.getElementById('user-location').value = `${userLocation[0].toFixed(5)}, ${userLocation[1].toFixed(5)}`;
+            },
+            err => alert('GPS error: ' + err.message)
+        );
+    }
+}
+
+function updateUserMarker() {
+    if (!userLocation) return;
+    if (!userMarker) {
+        userMarker = L.marker(userLocation, {
+            icon: L.divIcon({ className: '', html: '<div class="marker-me"></div>', iconSize: [24, 24], iconAnchor: [12, 12] })
+        }).addTo(map).bindTooltip('Your Location');
+    } else {
+        userMarker.setLatLng(userLocation);
+    }
+}
+
+function addBranchMarkers(branches) {
+    branches.forEach(b => {
+        if (branchMarkers[b.branch_id]) return;
+        
+        const load = (b.current_load || 0) / (b.total_capacity || 1);
+        const color = load < 0.5 ? BRANCH_COLORS.low : load < 0.8 ? BRANCH_COLORS.medium : BRANCH_COLORS.high;
+        
+        if (!b.latitude || !b.longitude) return;
+        
+        const marker = L.marker([b.latitude, b.longitude], {
+            icon: L.divIcon({
+                className: '',
+                html: `<div class="marker-branch" style="background:${color}; color:white;">${(b.branch_name || 'B')[0]}</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            })
+        }).addTo(map).bindPopup(`
+            <strong>${b.branch_name}</strong><br>
+            Queue: ${Math.round(load * 100)}%<br>
+            Capacity: ${b.total_capacity}
+        `);
+        
+        marker.on('click', () => {
+            if (b.branch_id === currentRecommendation?.branch_id) {
+                showRouteToBranch(b);
+            }
+        });
+        
+        branchMarkers[b.branch_id] = { marker, data: b };
+    });
+}
+
+async function sendMessage() {
+    const input = document.getElementById('message-input');
+    const message = input.value.trim();
+    if (!message) return;
+    
+    addMessage(message, 'user');
+    input.value = '';
+    
+    const typingMsg = addMessage('Thinking...', 'assistant');
+    
+    try {
+        const response = await fetch(`${API_URL}/api/agent/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message,
+                patient_lat: userLocation?.[0],
+                patient_lon: userLocation?.[1],
+                confirmed: false
+            })
+        });
+        
+        const data = await response.json();
+        removeMessage(typingMsg);
+        
+        addMessage(data.reply || 'No response', 'assistant');
+        
+        if (data.recommendation) {
+            showBranchRecommendation(data.recommendation, data.urgency);
+            currentRecommendation = data.recommendation;
+        }
+        
+        setConnectionStatus('connected');
+        
+    } catch (err) {
+        removeMessage(typingMsg);
+        addMessage('Sorry, I encountered an error. Please try again.', 'assistant');
+        setConnectionStatus('error');
+    }
+}
+
+function addMessage(content, type) {
+    const container = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = `message ${type}`;
+    div.innerHTML = `<div class="message-content">${formatContent(content)}</div>`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    return div;
+}
+
+function removeMessage(el) {
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+function formatContent(text) {
+    if (!text) return '';
+    return text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+}
+
+function showBranchRecommendation(rec, urgency) {
+    const card = document.createElement('div');
+    card.className = 'branch-card recommended';
+    card.innerHTML = `
+        <div class="flex justify-between items-start mb-2">
+            <strong>${rec.branch_name}</strong>
+            <span class="urgency-badge urgency-${urgency?.toLowerCase() || 'medium'}">${urgency || 'MEDIUM'}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-sm mb-3">
+            <div>
+                <div class="text-xs" style="color:var(--muted);">ETA</div>
+                <div class="font-semibold">${rec.eta_minutes || '-'} min</div>
+            </div>
+            <div>
+                <div class="text-xs" style="color:var(--muted);">Queue</div>
+                <div class="font-semibold">${rec.queue_length || 0} patients</div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <div class="text-xs mb-1" style="color:var(--muted);">Load</div>
+            <div class="load-indicator">
+                <div class="load-bar ${(rec.load_factor || 0) > 0.7 ? 'load-high' : (rec.load_factor || 0) > 0.4 ? 'load-medium' : 'load-low'}" 
+                     style="width:${((rec.load_factor || 0) * 100)}%;"></div>
+            </div>
+        </div>
+        <button onclick="bookRecommendation()" class="btn-primary w-full">Book Appointment</button>
+    `;
+    document.getElementById('messages').appendChild(card);
+    document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    
+    if (rec.latitude && rec.longitude) {
+        showRouteToBranch(rec);
+    }
+}
+
+async function showRouteToBranch(branch) {
+    if (!userLocation) return;
+    
+    try {
+        const response = await fetch(`${API_URL}/api/search/eta?from_lat=${userLocation[0]}&from_lon=${userLocation[1]}&to_lat=${branch.latitude}&to_lon=${branch.longitude}`);
+        const data = await response.json();
+        
+        const panel = document.getElementById('route-info-panel');
+        const details = document.getElementById('route-details');
+        
+        let warnings = '';
+        if (currentRoute?.warnings?.length) {
+            warnings = `<div style="color:var(--warn);" class="text-xs mt-2">${currentRoute.warnings.length} route warning(s)</div>`;
+        }
+        
+        details.innerHTML = `
+            <div class="flex justify-between mb-2">
+                <span style="color:var(--muted);">Distance</span>
+                <span>${data.fallback_used ? '~' : ''}${Math.round((data.eta_minutes || 0) * 2)} km</span>
+            </div>
+            <div class="flex justify-between">
+                <span style="color:var(--muted);">Duration</span>
+                <span>${data.eta_minutes || '-'} min</span>
+            </div>
+            ${warnings}
+        `;
+        panel.classList.remove('hidden');
+        
+        if (routeLayer) map.removeLayer(routeLayer);
+        
+        try {
+            const response2 = await fetch(`${API_URL}/api/route`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    from_lat: userLocation[0],
+                    from_lon: userLocation[1],
+                    to_lat: branch.latitude,
+                    to_lon: branch.longitude
+                })
+            });
+            const routeData = await response2.json();
+            
+            if (routeData.geometry) {
+                const coords = routeData.geometry.coordinates.map(c => [c[1], c[0]]);
+                routeLayer = L.polyline(coords, { color: '#22c55e', weight: 5, opacity: 0.8 }).addTo(map);
+                map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+            }
+        } catch (e) {}
+        
+    } catch (err) {
+        console.error('Route error:', err);
+    }
+}
+
+function clearRoute() {
+    if (routeLayer) map.removeLayer(routeLayer);
+    document.getElementById('route-info-panel').classList.add('hidden');
+    currentRoute = null;
+}
+
+async function bookRecommendation() {
+    if (!currentRecommendation) return;
+    
+    addMessage('Booking your appointment...', 'user');
+    
+    try {
+        const response = await fetch(`${API_URL}/api/agent/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: 'confirm booking',
+                patient_lat: userLocation?.[0],
+                patient_lon: userLocation?.[1],
+                confirmed: true
+            })
+        });
+        
+        const data = await response.json();
+        addMessage(data.reply || 'Booking processed', 'assistant');
+        
+        if (data.appointment_id) {
+            appointmentId = data.appointment_id;
+            showQRCode(data.appointment_id);
+            connectToQueue(data.appointment_id);
+        }
+        
+    } catch (err) {
+        addMessage('Booking failed. Please try again.', 'assistant');
+    }
+}
+
+function showQRCode(id) {
+    const card = document.createElement('div');
+    card.className = 'branch-card text-center';
+    card.innerHTML = `
+        <h4 class="font-semibold mb-2">Appointment Confirmed!</h4>
+        <div id="qr-code" class="my-4 mx-auto"></div>
+        <div class="text-xs" style="color:var(--muted);">ID: ${id.substring(0, 8)}...</div>
+    `;
+    document.getElementById('messages').appendChild(card);
+    try {
+        new QRCode(document.getElementById('qr-code'), {
+            text: id,
+            width: 128,
+            height: 128
+        });
+    } catch (e) {}
+}
+
+function connectToQueue(apptId) {
+    try {
+        queueSocket = io(`${API_URL}/ws/queue`, {
+            transports: ['websocket', 'polling']
+        });
+        
+        queueSocket.on('connect', () => {
+            queueSocket.emit('subscribe_queue', { appointment_id: apptId });
+            document.getElementById('queue-widget').classList.remove('hidden');
+        });
+        
+        queueSocket.on('queue_update', data => {
+            document.getElementById('queue-position').textContent = data.position || '-';
+            document.getElementById('queue-wait').textContent = `${data.estimated_wait_minutes || 0} min`;
+            document.getElementById('queue-doctor').textContent = `Doctor: ${data.doctor || '-'}`;
+        });
+        
+        queueSocket.on('queue_complete', data => {
+            addMessage(`Your turn! ${data.message || 'Please proceed.'}`, 'assistant');
+        });
+    } catch (e) {
+        console.error('Queue connection failed:', e);
+    }
+}
+
+function disconnectQueue() {
+    if (queueSocket) {
+        try {
+            queueSocket.emit('unsubscribe_queue', {});
+            queueSocket.disconnect();
+        } catch (e) {}
+        queueSocket = null;
+    }
+    document.getElementById('queue-widget').classList.add('hidden');
+    appointmentId = null;
+}
+
+function setConnectionStatus(status) {
+    const dot = document.getElementById('status-dot');
+    const text = document.getElementById('status-text');
+    
+    if (status === 'connected') {
+        dot.style.background = 'var(--accent)';
+        text.textContent = 'Connected';
+    } else if (status === 'error') {
+        dot.style.background = 'var(--danger)';
+        text.textContent = 'Error';
+    } else {
+        dot.style.background = 'var(--danger)';
+        text.textContent = 'Disconnected';
+    }
+}
+
+document.getElementById('message-input').addEventListener('keypress', e => {
+    if (e.key === 'Enter') sendMessage();
+});
+
+initMap();
+setConnectionStatus('disconnected');
+
+addMessage("Welcome to MediRoute! Describe your symptoms or medical need, and I'll find the best hospital for you.", 'assistant');
+</script>
+</body>
+</html>
