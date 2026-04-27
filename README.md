@@ -15,15 +15,22 @@ A real-time location sharing web app built with FastAPI, WebSockets (python-sock
 
 ```
 osrm/
-├── backend/          # FastAPI + socketio server logic
-├── frontend/         # Leaflet.js map UI (HTML/JS)
-├── map-files/        # OSRM map data or config files
-├── void/             # Additional module / experimental code
-├── .env              # Environment variables
+├── mediflow/
+│   ├── frontend/         # Leaflet.js map UI (HTML/JS)
+│   ├── models/           # Data models
+│   ├── backend/          # FastAPI + socketio server logic
+│   ├── .gitignore
+│   ├── .python-version
+│   ├── package-lock.json
+│   ├── pyproject.toml
+│   └── README.md
+├── map-view/             # OSRM map data or config files
+├── void/                 # Additional module / experimental code
+├── .env                  # Environment variables
 ├── .gitignore
-├── Procfile          # Render deployment entry point
-├── cloudflared.exe   # Cloudflare Tunnel binary for public URL
-└── requirements.txt  # Python dependencies
+├── Procfile              # Render deployment entry point
+├── cloudflared.exe       # Cloudflare Tunnel binary for public URL
+└── requirements.txt      # Python dependencies
 ```
 
 ## Tech Stack
@@ -107,4 +114,3 @@ python-multipart
 - [Leaflet.js](https://leafletjs.com/) — Interactive maps
 - [OpenStreetMap](https://www.openstreetmap.org/) — Map tile data
 - [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) — Public URL tunneling
-- 
